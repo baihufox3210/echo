@@ -134,6 +134,7 @@ dependencies = [
     { name = "aiosqlite" },
     { name = "discord" },
     { name = "openai" },
+    { name = "pydantic" },
     { name = "pydantic-settings" },
 ]
 
@@ -142,6 +143,7 @@ requires-dist = [
     { name = "aiosqlite", specifier = ">=0.22.1" },
     { name = "discord", specifier = ">=2.3.2" },
     { name = "openai", specifier = ">=3.3.1" },
+    { name = "pydantic", specifier = ">=2.13.4" },
     { name = "pydantic-settings", specifier = ">=2.15.0" },
 ]
 
