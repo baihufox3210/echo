@@ -21,9 +21,9 @@ class AIService:
             ChatMessage(role="user", content=user_message)
         ]
         
-        response =  await self.client.chat(messages=messages)
+        result =  await self.client.chat(messages=messages)
         
         await self.memory.add(user_id=user_id, role="user", content=user_message)
-        await self.memory.add(user_id=user_id, role="assistant", content=response)
+        await self.memory.add(user_id=user_id, role="assistant", content=result.dialogue)
         
-        return response
+        return result

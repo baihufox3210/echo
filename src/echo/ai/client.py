@@ -1,6 +1,6 @@
 from openai import AsyncOpenAI
 
-from echo.ai.models import ChatMessage
+from echo.ai.models import ChatMessage, AIResponse
 from echo.core.config import Settings
 
 
@@ -14,8 +14,8 @@ class AIClient:
 
         self.model = settings.gemini_model
 
-    async def chat(self, messages: list[ChatMessage]) -> str:
-        response = await self.client.chat.completions.create(
+    async def chat(self, messages: list[ChatMessage]) -> AIResponse:
+        response = await self.client.beta.chat.completions.parse(
             model=self.model,
             messages=[
                 {
@@ -24,6 +24,7 @@ class AIClient:
                 }
                 for message in messages
             ],
+            response_format=AIResponse
         )
-
-        return response.choices[0].message.content or ""
+        
+        return response.choices[0].message.parsed
