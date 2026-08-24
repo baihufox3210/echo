@@ -9,6 +9,7 @@ authors = [
 requires-python = ">=3.15"
 dependencies = [
     "discord>=2.3.2",
+    "openai>=3.3.1",
     "pydantic-settings>=2.15.0",
 ]
 
