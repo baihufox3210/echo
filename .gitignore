@@ -10,3 +10,6 @@ wheels/
 .venv
 
 .env
+
+character_state.json
+memory.db

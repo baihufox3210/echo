@@ -22,3 +22,6 @@ class PromptLoader:
         ]
 
         return "\n\n".join(parts)
+    
+    def load_character_state_prompt(self) -> str:
+        return self.load("context/character_state.md")
