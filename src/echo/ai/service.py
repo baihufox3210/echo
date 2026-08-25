@@ -29,8 +29,7 @@ class AIService:
         )
 
         messages = [
-            ChatMessage(role="system", content=system_prompt),
-            ChatMessage(role="system", content=state_prompt), *history,
+            ChatMessage(role="system", content=f"{system_prompt}\n\n{state_prompt}"), *history,
             ChatMessage(role="user", content=user_message)
         ]
         
