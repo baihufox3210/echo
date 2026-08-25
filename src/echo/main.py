@@ -1,8 +1,14 @@
-from echo.core.bot import Bot
+import asyncio
+
+from echo.core.application import Application
 from echo.core.config import get_settings
 
-bot = Bot()
-settings = get_settings()
-
+async def main():
+    settings = get_settings()
+    app = Application(settings=settings)
+    
+    await app.initialize()
+    await app.bot.start(settings.discord_token)
+    
 if __name__ == "__main__":
-    bot.run(settings.discord_token)
+    asyncio.run(main())
