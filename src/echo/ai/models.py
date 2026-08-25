@@ -13,7 +13,7 @@ class CharacterState(BaseModel):
     trust: int = Field(ge=0, le=100)
     
 @dataclass(slots=True)
-class AIResponse:
+class AIResponse(BaseModel):
     dialogue: str
     action: str
     state: CharacterState

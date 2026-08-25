@@ -37,4 +37,4 @@ class CharacterStateStore:
         data = self._load_all()
         data[str(user_id)] = state.model_dump()
         
-        self._save_all
+        self._save_all(data=data)
