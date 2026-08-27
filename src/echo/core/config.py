@@ -7,9 +7,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     discord_token: str
 
-    gemini_base_url: str
-    gemini_api_key: str
-    gemini_model: str
+    base_url: str
+    api_key: str
+    model: str
     
     memory_database_path: Path = Path("data/memory.db")
     character_state_path: Path = Path("data/character_state.json")
