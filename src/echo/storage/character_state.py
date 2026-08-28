@@ -48,3 +48,11 @@ class CharacterStateStore:
         data[str(user_id)] = state.model_dump()
         
         self._save_all(data=data)
+
+    async def delete_user(self, user_id: int) -> None:
+        data = self._load_all()
+        data.pop(str(user_id), None)
+        self._save_all(data=data)
+
+    async def delete_all(self) -> None:
+        self._save_all(data={})

@@ -4,14 +4,24 @@ from discord.ext import commands
 
 from echo.core.errors import EchoError
 from echo.memory.long_term import LongTermMemory
+from echo.memory.short_term import ShortTermMemory
+from echo.storage.character_state import CharacterStateStore
 
 async def is_bot_owner(interaction: discord.Interaction) -> bool:
     return await interaction.client.is_owner(interaction.user)
 
 class Memory(commands.GroupCog, group_name="memory"):
-    def __init__(self, bot: commands.Bot, history: LongTermMemory):
+    def __init__(
+        self,
+        bot: commands.Bot,
+        history: LongTermMemory,
+        memory: ShortTermMemory,
+        state: CharacterStateStore,
+    ):
         self.bot = bot
         self.history = history
+        self.memory = memory
+        self.state = state
         
         super().__init__()
         
@@ -20,13 +30,15 @@ class Memory(commands.GroupCog, group_name="memory"):
         await interaction.response.defer(ephemeral=True)
         
         try:
-            result = await self.history.delete_user(user_id=interaction.user.id)
+            await self.history.delete_user(user_id=interaction.user.id)
+            await self.memory.clear(user_id=interaction.user.id)
+            await self.state.delete_user(user_id=interaction.user.id)
         except EchoError:
             await self._send_failure(interaction, "刪除記憶失敗，請稍後再試。")
             return
         
         await interaction.followup.send(
-            f"已刪除 {interaction.user.name} 所有的記憶。\n`{result.get('message', '完成')}`",
+            f"已刪除 {interaction.user.name} 的所有記憶。",
             ephemeral=True
         )
         
@@ -36,7 +48,9 @@ class Memory(commands.GroupCog, group_name="memory"):
         await interaction.response.defer(ephemeral=False)
 
         try:
-            result = await self.history.delete_all()
+            await self.history.delete_all()
+            await self.memory.clear_all()
+            await self.state.delete_all()
         except EchoError:
             await self._send_failure(
                 interaction,
@@ -45,8 +59,7 @@ class Memory(commands.GroupCog, group_name="memory"):
             return
 
         await interaction.followup.send(
-            f"已刪除所有使用者的記憶。\n"
-            f"`{result.get('message', '完成')}`",
+            "已刪除所有使用者的記憶。",
             ephemeral=False,
         )
 
@@ -80,5 +93,7 @@ async def setup(bot: commands.Bot):
         Memory(
             bot=bot,
             history=bot.services.history,
+            memory=bot.services.memory,
+            state=bot.services.state,
         )
     )

@@ -107,3 +107,8 @@ class ShortTermMemory:
             )
 
             await db.commit()
+
+    async def clear_all(self) -> None:
+        async with self._connection() as db:
+            await db.execute("DELETE FROM short_term_memory")
+            await db.commit()
