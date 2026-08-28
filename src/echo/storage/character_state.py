@@ -25,10 +25,10 @@ class CharacterStateStore:
         
         if state is None:
             return CharacterState(
-                affection=50,
+                affection=0,
                 mood=50,
                 stamina=100,
-                trust=50
+                trust=0
             )
             
         return CharacterState.model_validate(state)
