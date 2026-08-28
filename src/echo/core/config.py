@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     memory_database_path: Path = Path("data/memory.db")
     character_state_path: Path = Path("data/character_state.json")
     prompt_dir: Path = Path("prompt")
+    
+    mem0_base_url: str
 
     model_config = SettingsConfigDict(
         env_file=".env",
