@@ -27,3 +27,7 @@ class Services:
         
     async def initialize(self):
         await self.memory.initialize()
+
+    async def close(self):
+        await self.ai.client.close()
+        await self.history.close()

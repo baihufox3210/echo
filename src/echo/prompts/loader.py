@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from echo.core.errors import PromptError
+
 class PromptLoader:
     def __init__(self, prompt_dir: Path):
         self.prompt_dir = prompt_dir
@@ -10,7 +12,10 @@ class PromptLoader:
         if not path.exists():
             raise FileNotFoundError(f"Prompt not found: {path}")
 
-        return path.read_text(encoding="utf-8").strip()
+        try:
+            return path.read_text(encoding="utf-8").strip()
+        except OSError as error:
+            raise PromptError(f"Prompt could not be loaded: {path}") from error
 
     def load_system_prompt(self) -> str:
         parts = [

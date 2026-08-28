@@ -8,7 +8,10 @@ async def main():
     app = Application(settings=settings)
     
     await app.initialize()
-    await app.bot.start(settings.discord_token)
+    try:
+        await app.bot.start(settings.discord_token)
+    finally:
+        await app.services.close()
     
 if __name__ == "__main__":
     asyncio.run(main())

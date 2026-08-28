@@ -1,14 +1,25 @@
-from echo.ai.models import ChatMessage
+from contextlib import asynccontextmanager
+
 import aiosqlite
 
+from echo.ai.models import ChatMessage
+from echo.core.errors import StorageError
 
 class ShortTermMemory:
     def __init__(self, database_path: str = "data/memory.db", max_messages: int = 20):
         self.database_path = database_path
         self.max_messages = max_messages
 
+    @asynccontextmanager
+    async def _connection(self):
+        try:
+            async with aiosqlite.connect(self.database_path) as db:
+                yield db
+        except aiosqlite.Error as error:
+            raise StorageError("Short-term memory database operation failed") from error
+
     async def initialize(self) -> None:
-        async with aiosqlite.connect(self.database_path) as db:
+        async with self._connection() as db:
             await db.execute(
                 """
                 CREATE TABLE IF NOT EXISTS short_term_memory (
@@ -32,7 +43,7 @@ class ShortTermMemory:
             await db.commit()
 
     async def add(self, user_id: int, role: str, content: str) -> None:
-        async with aiosqlite.connect(self.database_path) as db:
+        async with self._connection() as db:
             await db.execute(
                 """
                 INSERT INTO short_term_memory
@@ -64,7 +75,7 @@ class ShortTermMemory:
             await db.commit()
 
     async def get(self, user_id: int) -> list[ChatMessage]:
-        async with aiosqlite.connect(self.database_path) as db:
+        async with self._connection() as db:
             cursor = await db.execute(
                 """
                 SELECT role, content
@@ -86,7 +97,7 @@ class ShortTermMemory:
         ]
 
     async def clear(self, user_id: int) -> None:
-        async with aiosqlite.connect(self.database_path) as db:
+        async with self._connection() as db:
             await db.execute(
                 """
                 DELETE FROM short_term_memory

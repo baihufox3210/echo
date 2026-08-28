@@ -1,7 +1,12 @@
+import logging
+
 import discord
 from discord.ext import commands
 
 from echo.core.bot import Bot
+from echo.core.errors import EchoError
+
+logger = logging.getLogger(__name__)
 
 class Chat(commands.Cog):
     def __init__(self, bot: Bot):
@@ -25,7 +30,11 @@ class Chat(commands.Cog):
             
             await message.channel.send(result.dialogue)
             
+        except EchoError:
+            logger.exception("Chat service failed")
+            await message.channel.send("抱歉，服務暫時無法回應，請稍後再試。")
         except Exception:
+            logger.exception("Unexpected chat error")
             await message.channel.send("抱歉，剛才好像出了點問題……")
 
 async def setup(bot: Bot):

@@ -2,11 +2,11 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
+from echo.core.errors import EchoError
 from echo.memory.long_term import LongTermMemory
 
 async def is_bot_owner(interaction: discord.Interaction) -> bool:
     return await interaction.client.is_owner(interaction.user)
-
 
 class Memory(commands.GroupCog, group_name="memory"):
     def __init__(self, bot: commands.Bot, history: LongTermMemory):
@@ -19,7 +19,11 @@ class Memory(commands.GroupCog, group_name="memory"):
     async def delete(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         
-        result = await self.history.delete_user(user_id=interaction.user.id)
+        try:
+            result = await self.history.delete_user(user_id=interaction.user.id)
+        except EchoError:
+            await self._send_failure(interaction, "刪除記憶失敗，請稍後再試。")
+            return
         
         await interaction.followup.send(
             f"已刪除 {interaction.user.name} 所有的記憶。\n`{result.get('message', '完成')}`",
@@ -31,11 +35,12 @@ class Memory(commands.GroupCog, group_name="memory"):
     async def delete_all(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=False)
 
-        result = await self.history.delete_all()
-        if result.get("error"):
-            await interaction.followup.send(
+        try:
+            result = await self.history.delete_all()
+        except EchoError:
+            await self._send_failure(
+                interaction,
                 "刪除所有使用者的記憶失敗，請稍後再試。",
-                ephemeral=True,
             )
             return
 
@@ -45,20 +50,30 @@ class Memory(commands.GroupCog, group_name="memory"):
             ephemeral=False,
         )
 
-    @delete_all.error
-    async def delete_all_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+    async def _send_failure(self, interaction: discord.Interaction, message: str):
+        if interaction.response.is_done():
+            await interaction.followup.send(message, ephemeral=True)
+        else:
+            await interaction.response.send_message(message, ephemeral=True)
+
+    async def _handle_command_error(
+        self,
+        interaction: discord.Interaction,
+        error: app_commands.AppCommandError,
+    ):
         if isinstance(error, app_commands.CheckFailure):
-            await interaction.response.send_message(
-                "你沒有權限執行這個指令。",
-                ephemeral=True,
-            )
+            await self._send_failure(interaction, "你沒有權限執行這個指令。")
             return
 
-        if not interaction.response.is_done():
-            await interaction.response.send_message(
-                "執行指令時發生錯誤，請稍後再試。",
-                ephemeral=True,
-            )
+        await self._send_failure(interaction, "執行指令時發生錯誤，請稍後再試。")
+
+    @delete.error
+    async def delete_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        await self._handle_command_error(interaction, error)
+
+    @delete_all.error
+    async def delete_all_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        await self._handle_command_error(interaction, error)
         
 async def setup(bot: commands.Bot):
     await bot.add_cog(

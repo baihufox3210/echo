@@ -1,10 +1,12 @@
-import traceback
+import logging
 
 from openai import AsyncOpenAI
 
 from echo.ai.models import ChatMessage, AIResponse
 from echo.core.config import Settings
+from echo.core.errors import AIServiceError
 
+logger = logging.getLogger(__name__)
 
 class AIClient:
     def __init__(self, settings: Settings):
@@ -27,20 +29,18 @@ class AIClient:
             response = await self.client.beta.chat.completions.parse(
                 model=self.model,
                 messages=[
-                    {
-                        "role": message.role,
-                        "content": message.content,
-                    }
+                    {"role": message.role, "content": message.content}
                     for message in messages
                 ],
-                response_format=AIResponse
+                response_format=AIResponse,
             )
+            parsed = response.choices[0].message.parsed
+            if parsed is None:
+                raise ValueError("AI response did not contain a parsed result")
+            return parsed
         except Exception as error:
-            print(
-                f"[OpenAI] request failed: {type(error).__name__}: {error}",
-                flush=True,
-            )
-            traceback.print_exc()
-            raise
-        
-        return response.choices[0].message.parsed
+            logger.debug("AI request failed: %s", error)
+            raise AIServiceError("AI service request failed") from error
+
+    async def close(self) -> None:
+        await self.client.close()
