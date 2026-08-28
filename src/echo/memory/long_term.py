@@ -1,8 +1,14 @@
+import logging
+
 import httpx
 
 from typing import Any
 
 from echo.ai.models import ChatMessage
+
+
+logger = logging.getLogger(__name__)
+
 
 class LongTermMemory:
     def __init__(self, base_url: str, timeout: float = 50):        
@@ -70,10 +76,19 @@ class LongTermMemory:
         return response.json()
     
     async def delete_all(self) -> dict[str, Any]:
-        response = await self.client.delete("/memories")
+        try:
+            response = await self.client.delete(
+                "/memories",
+                params={
+                    "user_id": "*",
+                },
+            )
 
-        response.raise_for_status()
-        return response.json()
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPError:
+            logger.exception("Failed to delete all memories")
+            return {"error": "Failed to delete all memories"}
         
     async def close(self):
         await self.client.aclose()
