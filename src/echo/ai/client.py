@@ -19,10 +19,10 @@ class AIClient:
         self.model = settings.model
 
     async def chat(self, messages: list[ChatMessage]) -> AIResponse:
-        print(
-            f"[OpenAI] sending request: base_url={self.client.base_url}, "
-            f"model={self.model}, messages={len(messages)}",
-            flush=True,
+        logger.debug(
+            "AI request sent: model=%s, message_count=%d",
+            self.model,
+            len(messages),
         )
 
         try:
@@ -39,7 +39,7 @@ class AIClient:
                 raise ValueError("AI response did not contain a parsed result")
             return parsed
         except Exception as error:
-            logger.debug("AI request failed: %s", error)
+            logger.error("AI service error: %s", error.__class__.__name__)
             raise AIServiceError("AI service request failed") from error
 
     async def close(self) -> None:

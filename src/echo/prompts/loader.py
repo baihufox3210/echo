@@ -4,10 +4,13 @@ from echo.core.errors import PromptError
 
 class PromptLoader:
     def __init__(self, prompt_dir: Path):
-        self.prompt_dir = prompt_dir
+        self.prompt_dir = prompt_dir.resolve()
 
     def load(self, name: str) -> str:
-        path = self.prompt_dir / name
+        path = (self.prompt_dir / name).resolve()
+
+        if not str(path).startswith(str(self.prompt_dir)):
+            raise PromptError(f"Invalid prompt path: {name}")
 
         if not path.exists():
             raise FileNotFoundError(f"Prompt not found: {path}")

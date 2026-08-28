@@ -6,13 +6,14 @@ from echo.ai.models import ChatMessage
 from echo.core.errors import MemoryServiceError
 
 class LongTermMemory:
-    def __init__(self, base_url: str, timeout: float = 50):        
+    def __init__(self, base_url: str, timeout: float = 50, verify_ssl: bool = True):
         self.client = httpx.AsyncClient(
             base_url=base_url,
             headers={
                 "Content-Type": "application/json",
             },
-            timeout=timeout
+            timeout=timeout,
+            verify=verify_ssl,
         )
         
     async def add(self, messages: list[ChatMessage], user_id: int) -> dict[str, Any]:
@@ -72,6 +73,9 @@ class LongTermMemory:
             response.raise_for_status()
             return response.json()
         except (httpx.HTTPError, ValueError) as error:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error("Memory service error: %s", error.__class__.__name__)
             raise MemoryServiceError("Long-term memory request failed") from error
         
     async def close(self):

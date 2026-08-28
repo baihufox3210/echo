@@ -1,3 +1,4 @@
+import asyncio
 import json
 from pathlib import Path
 
@@ -7,6 +8,7 @@ from echo.core.errors import StorageError
 class CharacterStateStore:
     def __init__(self, path: Path):
         self.path = path
+        self._lock = asyncio.Lock()
         
     def _load_all(self) -> dict[str, dict]:
         if not self.path.exists(): return {}
@@ -27,32 +29,35 @@ class CharacterStateStore:
             raise StorageError("Character state could not be saved") from error
             
     async def get(self, user_id: int) -> CharacterState:
-        data = self._load_all()
-        state = data.get(str(user_id))
-        
-        if state is None:
-            return CharacterState(
-                affection=0,
-                mood=50,
-                stamina=100,
-                trust=0
-            )
+        async with self._lock:
+            data = self._load_all()
+            state = data.get(str(user_id))
             
-        try:
-            return CharacterState.model_validate(state)
-        except ValueError as error:
-            raise StorageError("Character state is invalid") from error
+            if state is None:
+                return CharacterState(
+                    affection=0,
+                    mood=50,
+                    stamina=100,
+                    trust=0
+                )
+                
+            try:
+                return CharacterState.model_validate(state)
+            except ValueError as error:
+                raise StorageError("Character state is invalid") from error
     
     async def save(self, user_id: int, state: CharacterState) -> None:
-        data = self._load_all()
-        data[str(user_id)] = state.model_dump()
-        
-        self._save_all(data=data)
+        async with self._lock:
+            data = self._load_all()
+            data[str(user_id)] = state.model_dump()
+            self._save_all(data=data)
 
     async def delete_user(self, user_id: int) -> None:
-        data = self._load_all()
-        data.pop(str(user_id), None)
-        self._save_all(data=data)
+        async with self._lock:
+            data = self._load_all()
+            data.pop(str(user_id), None)
+            self._save_all(data=data)
 
     async def delete_all(self) -> None:
-        self._save_all(data={})
+        async with self._lock:
+            self._save_all(data={})

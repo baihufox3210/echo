@@ -1,10 +1,14 @@
 import os
-import traceback
+import logging
 
 import discord
 from discord.ext import commands
 
 from echo.core.services import Services
+
+logger = logging.getLogger(__name__)
+
+ALLOWED_EXTENSIONS = {"chat", "memory"}
 
 
 class Bot(commands.Bot):
@@ -25,24 +29,26 @@ class Bot(commands.Bot):
         cogs_dir = os.path.join(base_dir, "cogs")
 
         if not os.path.exists(cogs_dir):
-            print(f"[Bot] 找不到 cogs 目錄: {cogs_dir}")
+            logger.info("Cogs directory not found: %s", cogs_dir)
             return
 
-        for root, _, files in os.walk(cogs_dir):
-            for file in files:
-                if not file.endswith(".py"):
-                    continue
+        for file in os.listdir(cogs_dir):
+            if not file.endswith(".py") or file.startswith("_"):
+                continue
 
-                rel_path = os.path.relpath(os.path.join(root, file), ".")
-                extension = rel_path.replace(os.sep, ".")[:-3]
+            extension_name = file[:-3]
 
-                try:
-                    await super().load_extension(extension)
-                    print(f"[Bot] Loaded: {extension}")
-                    
-                except Exception:
-                    print(f"[Bot] Extension Load Failed: {extension}")
-                    print(traceback.format_exc())
+            if extension_name not in ALLOWED_EXTENSIONS:
+                logger.warning("Extension blocked (not in whitelist): %s", extension_name)
+                continue
+
+            extension = f"echo.cogs.{extension_name}"
+
+            try:
+                await super().load_extension(extension)
+                logger.info("Extension loaded: %s", extension)
+            except Exception as e:
+                logger.error("Extension load failed: %s - %s", extension, e.__class__.__name__)
 
     async def on_ready(self):
         print("=" * 40)
