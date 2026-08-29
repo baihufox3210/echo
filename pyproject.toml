@@ -12,6 +12,7 @@ dependencies = [
     "discord>=2.3.2",
     "httpx>=0.28.1",
     "openai>=3.3.1",
+    "openai-agents>=0.22.0",
     "pydantic>=2.13.4",
     "pydantic-settings>=2.15.0",
 ]
