@@ -17,6 +17,11 @@ class Settings(BaseSettings):
     prompt_dir: Path = Path("prompt")
     
     mem0_base_url: str = Field(..., min_length=1)
+    
+    searxng_url: str = Field(default="http://127.0.0.1:8080")
+    search_timeout: float = Field(default=20.0)
+    search_max_results: int = Field(default=5)
+    search_language: str = Field(default="zh-TW")
 
     @field_validator("base_url", "mem0_base_url")
     @classmethod
