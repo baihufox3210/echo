@@ -165,7 +165,7 @@ class AIClient:
             except openai.BadRequestError as error:
                 # 模型不支援圖片時，移除圖片後再試一次
                 if has_images and attempt < self.settings.ai_max_runs:
-                    logger.warning("Request with images rejected, retrying without images")
+                    logger.warning("Request with images rejected, retrying without images: %s", error)
                     messages = [ChatMessage(m.role, m.content + ("\n（附加的圖片無法讀取）" if m.images else "")) for m in messages]
                     has_images = False
                     await context.emit(AgentEvent("retry"))
