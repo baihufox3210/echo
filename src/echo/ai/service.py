@@ -87,6 +87,7 @@ class AIService:
 
         async with self.user_lock(user_id):
             messages, previous_state = await self._build_messages(user_id, user_message, processed, guard, quoted)
+            context.fallback_state = previous_state
             context.on_event = self._leak_filter(guard, on_event)
 
             async with self._semaphore:

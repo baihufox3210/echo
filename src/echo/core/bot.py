@@ -31,6 +31,11 @@ class Bot(commands.Bot):
 
         self.services = services
 
+    async def on_message(self, message: discord.Message) -> None:
+        # 不使用前綴指令；對話由 Chat cog 的 listener 處理。
+        # 預設實作會把「@Bot 文字」當成指令解析，產生 CommandNotFound 錯誤日誌。
+        return
+
     async def setup_hook(self) -> None:
         for extension in EXTENSIONS:
             try:

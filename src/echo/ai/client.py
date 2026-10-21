@@ -1,4 +1,5 @@
 import logging
+import time
 from dataclasses import dataclass, field
 
 import openai
@@ -16,9 +17,10 @@ from agents.run_error_handlers import RunErrorHandlerInput, RunErrorHandlerResul
 from openai import AsyncOpenAI
 
 from echo.ai.context import AgentEvent, RunContext
-from echo.ai.models import AIResponse, ChatMessage, TokenUsage
+from echo.ai.models import AIResponse, CharacterState, ChatMessage, TokenUsage
 from echo.ai.research import build_research_tool, finalize_without_tools
-from echo.ai.streaming import PartialFieldExtractor
+from echo.ai.output import response_text, salvage_response
+from echo.ai.streaming import DialogueStream
 from echo.ai.tools import (
     ApiClient,
     WebSearch,
@@ -34,7 +36,7 @@ from echo.ai.tools import (
     build_weather_tool,
 )
 from echo.core.config import Settings
-from echo.core.errors import AIServiceError
+from echo.core.errors import AIOverloadedError, AIServiceError
 from echo.memory.long_term import LongTermMemory
 from echo.storage.notes import NoteStore
 from echo.storage.reminders import ReminderStore
@@ -80,6 +82,8 @@ TOOL_INSTRUCTIONS = """\
 class InvalidOutputError(Exception):
     pass
 
+
+OVERLOAD_ERRORS = (openai.RateLimitError, openai.InternalServerError)
 
 RETRYABLE_ERRORS = (
     InvalidOutputError,
@@ -154,17 +158,32 @@ class AIClient:
             tools=tools,
             output_type=AIResponse,
         )
+        self.fallback_agent = (
+            self.agent.clone(
+                name="Echo (fallback)",
+                model=OpenAIChatCompletionsModel(model=settings.fallback_model, openai_client=self.client),
+            )
+            if settings.fallback_model
+            else None
+        )
 
     async def chat(self, messages: list[ChatMessage], context: RunContext, stream: bool = False) -> RunOutcome:
-        """執行代理；可重試的錯誤會重新執行，最多 ai_max_runs 次。"""
-        has_images = any(m.images for m in messages)
+        """執行代理；可重試的錯誤會重新執行，最多 ai_max_runs 次。
 
-        for attempt in range(1, self.settings.ai_max_runs + 1):
+        主要模型過載時若設定了備援模型，會改用備援模型再試（額外多一次機會）。
+        """
+        has_images = any(m.images for m in messages)
+        agent = self.agent
+        max_runs = self.settings.ai_max_runs
+        attempt = 0
+
+        while attempt < max_runs:
+            attempt += 1
             try:
-                outcome = await self._run(messages, context, stream)
+                return await self._run(agent, messages, context, stream)
             except openai.BadRequestError as error:
                 # 模型不支援圖片時，移除圖片後再試一次
-                if has_images and attempt < self.settings.ai_max_runs:
+                if has_images and attempt < max_runs:
                     logger.warning("Request with images rejected, retrying without images: %s", error)
                     messages = [ChatMessage(m.role, m.content + ("\n（附加的圖片無法讀取）" if m.images else "")) for m in messages]
                     has_images = False
@@ -173,33 +192,54 @@ class AIClient:
                 logger.error("AI request rejected: %s", error)
                 raise AIServiceError("AI service rejected the request") from error
             except RETRYABLE_ERRORS as error:
-                logger.warning("AI run %d/%d failed: %s: %s", attempt, self.settings.ai_max_runs, error.__class__.__name__, error)
-                if attempt >= self.settings.ai_max_runs:
+                logger.warning(
+                    "AI run %d/%d failed (model=%s): %s: %s",
+                    attempt, max_runs, agent.model.model, error.__class__.__name__, error,
+                )
+                overloaded = isinstance(error, OVERLOAD_ERRORS)
+                if overloaded and self.fallback_agent is not None and agent is not self.fallback_agent:
+                    logger.warning("Switching to fallback model %s", self.settings.fallback_model)
+                    agent = self.fallback_agent
+                    max_runs = max(max_runs, attempt + 1)
+                elif attempt >= max_runs:
+                    if overloaded:
+                        raise AIOverloadedError("AI service is overloaded") from error
                     raise AIServiceError("AI service request failed") from error
                 await context.emit(AgentEvent("retry"))
-                continue
             except Exception as error:
                 logger.exception("Unexpected AI error")
                 raise AIServiceError("AI service request failed") from error
 
-            return outcome
-
         raise AIServiceError("AI service request failed")
 
-    async def _run(self, messages: list[ChatMessage], context: RunContext, stream: bool) -> RunOutcome:
-        logger.debug("AI request: model=%s messages=%d stream=%s", self.settings.model, len(messages), stream)
+    async def _run(
+        self,
+        agent: Agent[RunContext],
+        messages: list[ChatMessage],
+        context: RunContext,
+        stream: bool,
+    ) -> RunOutcome:
+        logger.debug("AI request: model=%s messages=%d stream=%s", agent.model.model, len(messages), stream)
         inputs = [m.to_input() for m in messages]
+
+        async def on_max_turns(data: RunErrorHandlerInput[RunContext]) -> RunErrorHandlerResult:
+            logger.info("Max turns reached; finalizing without tools")
+            return await finalize_without_tools(agent, data)
+
         options = {
             "context": context,
             "max_turns": self.settings.ai_max_turns,
-            "error_handlers": {"max_turns": self._on_max_turns},
+            "error_handlers": {
+                "max_turns": on_max_turns,
+                "invalid_final_output": self._on_invalid_output,
+            },
         }
 
         if stream:
-            result = Runner.run_streamed(self.agent, inputs, **options)
+            result = Runner.run_streamed(agent, inputs, **options)
             await self._consume_stream(result, context)
         else:
-            result = await Runner.run(self.agent, inputs, **options)
+            result = await Runner.run(agent, inputs, **options)
 
         parsed = result.final_output
         if not isinstance(parsed, AIResponse) or not parsed.dialogue.strip():
@@ -214,16 +254,46 @@ class AIClient:
 
     @staticmethod
     async def _consume_stream(result: RunResultStreaming, context: RunContext) -> None:
-        extractor = PartialFieldExtractor("dialogue")
+        dialogue = DialogueStream()
+        started = time.monotonic()
+        first_delta: float | None = None
+        deltas = 0
+
         async for event in result.stream_events():
             if event.type != "raw_response_event":
                 continue
             match getattr(event.data, "type", None):
                 case "response.created":
-                    extractor.reset()
+                    dialogue.reset()
                 case "response.output_text.delta":
-                    if text := extractor.feed(event.data.delta):
+                    deltas += 1
+                    if first_delta is None:
+                        first_delta = time.monotonic() - started
+                    if text := dialogue.feed(event.data.delta):
                         await context.emit(AgentEvent("text", text))
+
+        # 用於判斷 API 是否真的有串流：deltas 很少代表上游一次性回傳整段內容
+        logger.info(
+            "Stream finished: deltas=%d chars=%d first_delta=%.1fs total=%.1fs",
+            deltas, len(dialogue.buffer),
+            first_delta if first_delta is not None else -1, time.monotonic() - started,
+        )
+
+    @staticmethod
+    async def _on_invalid_output(data: RunErrorHandlerInput[RunContext]) -> RunErrorHandlerResult | None:
+        """模型輸出不符合 JSON schema 時，嘗試寬鬆解析，避免整個請求失敗。"""
+        text = response_text(data.run_data.raw_responses)
+        preview = text[:300].replace("\n", "\\n")
+        context = data.context.context
+        fallback_state = context.fallback_state or CharacterState(affection=0, mood=50, stamina=100, trust=0)
+
+        salvaged = salvage_response(text, fallback_state)
+        if salvaged is None:
+            logger.warning("Invalid model output could not be salvaged: %r", preview)
+            return None
+
+        logger.warning("Model output did not match schema; salvaged it. Raw output: %r", preview)
+        return RunErrorHandlerResult(final_output=salvaged)
 
     @staticmethod
     def _tools_used(result: RunResult | RunResultStreaming) -> list[str]:
@@ -232,10 +302,6 @@ class AIClient:
             if item.type == "tool_call_item":
                 names.append(getattr(item.raw_item, "name", None) or "tool")
         return names
-
-    async def _on_max_turns(self, data: RunErrorHandlerInput[RunContext]) -> RunErrorHandlerResult:
-        logger.info("Max turns reached; finalizing without tools")
-        return await finalize_without_tools(self.agent, data)
 
     async def close(self) -> None:
         await self.client.close()
