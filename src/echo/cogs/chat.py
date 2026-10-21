@@ -10,7 +10,7 @@ from echo.ai.context import ChannelMessage, ChatOrigin
 from echo.core.bot import Bot
 from echo.core.concurrency import RateLimiter
 from echo.core.embeds import reply_embed
-from echo.core.errors import EchoError
+from echo.core.errors import AIOverloadedError, EchoError
 from echo.core.reply import ReplyStreamer, send_reply
 
 logger = logging.getLogger(__name__)
@@ -141,6 +141,10 @@ class Chat(commands.Cog):
                     origin=self._origin(message),
                     quoted=self._quoted(message),
                 )
+        except AIOverloadedError:
+            logger.warning("AI service overloaded; request from user %d dropped", message.author.id)
+            await streamer.finish("AI 服務現在太忙了，請過一下再試一次。")
+            return
         except EchoError:
             logger.exception("Chat service failed")
             await streamer.finish("抱歉，服務暫時無法回應，請稍後再試。")

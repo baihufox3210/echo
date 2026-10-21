@@ -45,3 +45,33 @@ def _find_string_end(raw: str) -> int | None:
         elif char == '"':
             return index
     return None
+
+
+class DialogueStream:
+    """取得串流中目前可顯示的回覆文字。
+
+    正常情況下從 JSON 的 dialogue 欄位取出；若模型直接輸出純文字（未遵守 JSON 格式），
+    則直接顯示累積的文字。
+    """
+
+    PLAIN_TEXT_THRESHOLD = 8
+
+    def __init__(self) -> None:
+        self._extractor = PartialFieldExtractor("dialogue")
+
+    @property
+    def buffer(self) -> str:
+        return self._extractor.buffer
+
+    def reset(self) -> None:
+        self._extractor.reset()
+
+    def feed(self, delta: str) -> str | None:
+        value = self._extractor.feed(delta)
+        if value is not None:
+            return value
+
+        head = self.buffer.lstrip()
+        if len(head) >= self.PLAIN_TEXT_THRESHOLD and not head.startswith(("{", "`", "[")):
+            return head
+        return None

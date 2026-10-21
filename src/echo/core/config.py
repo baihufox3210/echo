@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     base_url: str = Field(..., min_length=1)
     api_key: str = Field(..., min_length=1)
     model: str = Field(..., min_length=1)
+    # 主要模型過載（429／5xx）時改用的備援模型，留空則不使用
+    fallback_model: str | None = None
     model_temperature: float | None = Field(default=None, ge=0, le=2)
     ai_timeout: float = Field(default=90.0, gt=0)
     ai_max_retries: int = Field(default=2, ge=0)
@@ -80,7 +82,7 @@ class Settings(BaseSettings):
     def disabled_tool_names(self) -> set[str]:
         return {name.strip() for name in self.disabled_tools.split(",") if name.strip()}
 
-    @field_validator("mem0_base_url", "searxng_url", mode="before")
+    @field_validator("mem0_base_url", "searxng_url", "fallback_model", mode="before")
     @classmethod
     def empty_as_none(cls, v: str | None) -> str | None:
         if isinstance(v, str) and not v.strip():

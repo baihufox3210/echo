@@ -3,6 +3,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
 
+from echo.ai.models import CharacterState
 from echo.ai.safety import PromptGuard
 
 logger = logging.getLogger(__name__)
@@ -54,6 +55,8 @@ class RunContext:
     on_event: EventCallback | None = None
     origin: ChatOrigin = field(default_factory=ChatOrigin)
     reactions: list[str] = field(default_factory=list)
+    # 模型輸出格式錯誤、只能取回純文字時沿用的角色狀態
+    fallback_state: CharacterState | None = None
 
     def consume_budget(self) -> bool:
         if self.tool_budget <= 0:

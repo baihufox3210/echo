@@ -66,6 +66,7 @@ async def process_files(files: list[IncomingFile], settings: Settings) -> Proces
         if kind == "image":
             mime = (file.content_type or "image/png").split(";")[0]
             processed.images.append(f"data:{mime};base64,{base64.b64encode(data).decode()}")
+            logger.info("Attached image %s (%s, %d bytes)", file.filename, mime, len(data))
             continue
 
         try:
@@ -78,5 +79,8 @@ async def process_files(files: list[IncomingFile], settings: Settings) -> Proces
 
     if len(files) > settings.max_attachments:
         processed.notes.append(f"一次最多處理 {settings.max_attachments} 個附件，其餘已略過")
+
+    for note in processed.notes:
+        logger.warning("Attachment skipped: %s", note)
 
     return processed

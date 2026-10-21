@@ -135,6 +135,7 @@ uv run pytest
 | `MEM0_BASE_URL`（空） | Mem0-compatible 記憶服務的 Base URL，需支援 `/memories` 與 `/search`；留空則停用長期記憶 |
 | `MEM0_TOP_K` (`10`) | 每次檢索的長期記憶數量 |
 | `MEM0_TIMEOUT` (`60`) | 記憶服務逾時秒數 |
+| `FALLBACK_MODEL`（空） | 主要模型過載（429／5xx）時改用的備援模型，例如較不擁擠的模型 |
 | `MODEL_TEMPERATURE`（空） | 模型 temperature，留空使用模型預設 |
 | `AI_TIMEOUT` (`90`) | AI API 逾時秒數 |
 | `AI_MAX_RETRIES` (`2`) | AI API 失敗重試次數 |
@@ -206,6 +207,17 @@ uv run pytest
 ## 資料與隱私
 
 對話（包含上傳的圖片與文件內容）會傳送至設定的 OpenAI-compatible API；短期記憶與角色狀態保存在 SQLite，長期記憶交由設定的 Mem0-compatible 服務保存。使用網路搜尋時，搜尋請求會送至設定的 SearXNG 服務，網頁擷取則會直接連線至指定網站；天氣、維基百科與匯率工具會分別連線至 Open-Meteo、Wikipedia 與 ExchangeRate-API。AI 讀取頻道對話時，頻道中其他人的訊息也會傳送至 AI API，若不希望如此，請以 `DISABLED_TOOLS=read_channel_history` 停用。請確認這些服務符合你的資料處理與隱私需求，並妥善保管 `.env` 中的 Token 與 API 金鑰。
+
+## 疑難排解
+
+查看日誌：`docker logs --tail 200 echo`（即時：`docker logs -f echo`）。
+
+| 日誌 | 說明 |
+| --- | --- |
+| `Stream finished: deltas=N ...` | 串流統計；`deltas` 很少（1～3）代表上游 API 一次回傳整段，串流看起來不會逐段更新 |
+| `Model output did not match schema; salvaged it` | 模型沒有照 JSON 格式回覆，已自動取回文字（角色狀態本輪不變） |
+| `AI run x/y failed ... 503` | 模型服務過載；可設定 `FALLBACK_MODEL` 自動改用備援模型 |
+| `Request with images rejected` | API 不接受圖片，冒號後為原因 |
 
 ## 授權
 
