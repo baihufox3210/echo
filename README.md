@@ -6,7 +6,7 @@ Echo 是一個以 Discord 為介面的 AI 角色對話 Bot。使用者提及 Bot
 
 - **Discord 對話**：提及 Bot、回覆 Bot 的訊息或私訊皆可觸發；Bot 以「回覆」形式回應，但不會 ping 任何人（包括 @everyone 與身分組）。
 - **即時串流回覆**：代理執行時即時顯示進度（🔍 搜尋中、📄 閱讀網頁、🔬 深入研究…），回覆文字邊生成邊更新到同一則訊息；更新會合併送出，避免觸發 Discord 頻率限制。
-- **Embed 資訊卡**：回覆下方以 Embed 呈現角色狀態（進度條與本輪變化 ▲▼）、參考來源連結、使用的工具與 token 用量。
+- **Embed 資訊卡**：引用網路資料時，回覆下方會以 Embed 列出參考來源、使用的工具與 token 用量；角色狀態預設不隨回覆顯示，可用 `/memory status` 查看（設定 `SHOW_STATE_EMBED=true` 則每次回覆都附上狀態進度條與本輪變化）。
 - **多人同時處理**：不同使用者並行處理，同一使用者依序處理，避免對話紀錄與角色狀態互相覆蓋；可設定 AI 最大並行數。
 - **附件讀取**：
   - 圖片：交給支援視覺的模型辨識（模型不支援時自動改為不帶圖片重試）。
@@ -147,7 +147,7 @@ uv run pytest
 | `REMINDER_PING` (`true`) | 提醒送達時是否 ping 設定提醒的本人（不會 ping 其他人） |
 | `STREAM_RESPONSES` (`true`) | 是否串流顯示回覆文字（模型需支援串流） |
 | `STREAM_EDIT_INTERVAL` (`1.2`) | 串流時編輯 Discord 訊息的最短間隔秒數 |
-| `SHOW_STATE_EMBED` (`true`) | 是否在回覆下方顯示角色狀態資訊卡 |
+| `SHOW_STATE_EMBED` (`false`) | 是否在每次回覆下方附上角色狀態資訊卡；關閉時可用 `/memory status` 查看 |
 | `ENABLE_VISION` (`true`) | 是否將圖片附件交給模型辨識 |
 | `MAX_ATTACHMENTS` (`4`) | 每則訊息最多處理的附件數 |
 | `ATTACHMENT_MAX_BYTES` (`8000000`) | 文件附件大小上限（圖片上限 5 MB） |

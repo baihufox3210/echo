@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     # 回覆呈現
     stream_responses: bool = True
     stream_edit_interval: float = Field(default=1.2, ge=0.5)
-    show_state_embed: bool = True
+    show_state_embed: bool = False
 
     # 附件
     enable_vision: bool = True
