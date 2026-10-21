@@ -8,6 +8,12 @@ if [ ! -f .env ]; then
     echo "已從 .env.example 建立 .env"
 fi
 
+# 修復先前追加時黏在其他行尾的 SEARXNG_SECRET，並確保檔尾有換行
+sed -i.bak 's/\(.\)SEARXNG_SECRET=.*$/\1/' .env && rm -f .env.bak
+if [ -s .env ] && [ -n "$(tail -c 1 .env)" ]; then
+    echo >> .env
+fi
+
 current=$(grep -E '^SEARXNG_SECRET=' .env | tail -n 1 | cut -d= -f2- || true)
 if [ -z "$current" ] || [ "$current" = "change_me" ]; then
     secret=$(od -An -N32 -tx1 /dev/urandom | tr -d ' \n')
