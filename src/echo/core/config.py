@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     ai_max_runs: int = Field(default=2, ge=1, le=5)
     tool_call_budget: int = Field(default=24, ge=1)
     enable_research: bool = True
+    # 以逗號分隔要停用的工具名稱，例如 "get_weather,read_channel_history"
+    disabled_tools: str = ""
+    reminder_ping: bool = True
     research_max_turns: int = Field(default=12, ge=2)
 
     # 回覆呈現
@@ -72,6 +75,10 @@ class Settings(BaseSettings):
 
     timezone: str = "Asia/Taipei"
     log_level: str = "INFO"
+
+    @property
+    def disabled_tool_names(self) -> set[str]:
+        return {name.strip() for name in self.disabled_tools.split(",") if name.strip()}
 
     @field_validator("mem0_base_url", "searxng_url", mode="before")
     @classmethod

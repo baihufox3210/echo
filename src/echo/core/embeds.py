@@ -21,6 +21,19 @@ TOOL_LABELS = {
     "read_attachment": "讀取附件",
     "calculate": "計算",
     "get_current_time": "查看時間",
+    "convert_time": "時區換算",
+    "get_weather": "天氣",
+    "wikipedia": "維基百科",
+    "convert_currency": "匯率",
+    "roll_dice": "擲骰",
+    "random_pick": "抽選",
+    "remember_note": "記筆記",
+    "forget_note": "刪除筆記",
+    "set_reminder": "設定提醒",
+    "list_reminders": "查看提醒",
+    "cancel_reminder": "取消提醒",
+    "read_channel_history": "閱讀頻道",
+    "add_reaction": "表情反應",
 }
 EMBED_COLOR = discord.Color.from_rgb(255, 143, 177)
 

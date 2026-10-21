@@ -53,3 +53,4 @@ class ChatResult:
     sources: list[str]
     usage: TokenUsage
     tools_used: list[str] = field(default_factory=list)
+    reactions: list[str] = field(default_factory=list)

@@ -29,6 +29,8 @@ class Memory(commands.GroupCog, group_name="memory", group_description="管理 E
         state = await self.services.state.get(user_id=user_id)
         history = await self.services.memory.get(user_id=user_id)
         last_seen = await self.services.state.last_interaction(user_id=user_id)
+        notes = await self.services.notes.get_all(user_id=user_id)
+        reminders = await self.services.reminders.count_user(user_id=user_id)
 
         embed = discord.Embed(title="角色狀態", color=EMBED_COLOR)
         embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.display_avatar.url)
@@ -39,6 +41,10 @@ class Memory(commands.GroupCog, group_name="memory", group_description="管理 E
             value=discord.utils.format_dt(last_seen, "R") if last_seen else "尚未互動",
             inline=True,
         )
+        embed.add_field(name="⏰ 待處理提醒", value=f"{reminders} 個", inline=True)
+        if notes:
+            lines = "\n".join(f"• **{key}**：{value}" for key, value in notes.items())
+            embed.add_field(name=f"📝 記住的事（{len(notes)}）", value=lines[:1024], inline=False)
 
         await interaction.followup.send(embed=embed, ephemeral=True)
 
@@ -53,6 +59,8 @@ class Memory(commands.GroupCog, group_name="memory", group_description="管理 E
             await self.services.memory.clear(user_id=user_id)
             await self.services.state.delete_user(user_id=user_id)
             await self.services.usage.delete_user(user_id=user_id)
+            await self.services.notes.delete_user(user_id=user_id)
+            await self.services.reminders.delete_user(user_id=user_id)
 
         await interaction.followup.send(f"已刪除 {interaction.user.display_name} 的所有記憶。", ephemeral=True)
 
@@ -64,6 +72,8 @@ class Memory(commands.GroupCog, group_name="memory", group_description="管理 E
         await self.services.history.delete_all()
         await self.services.memory.clear_all()
         await self.services.state.delete_all()
+        await self.services.notes.delete_all()
+        await self.services.reminders.delete_all()
 
         await interaction.followup.send("已刪除所有使用者的記憶。", ephemeral=True)
 

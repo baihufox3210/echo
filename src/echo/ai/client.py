@@ -20,15 +20,24 @@ from echo.ai.models import AIResponse, ChatMessage, TokenUsage
 from echo.ai.research import build_research_tool, finalize_without_tools
 from echo.ai.streaming import PartialFieldExtractor
 from echo.ai.tools import (
+    ApiClient,
     WebSearch,
     build_attachment_tool,
     build_calculator_tool,
+    build_channel_tools,
+    build_fun_tools,
+    build_knowledge_tools,
     build_memory_tool,
-    build_time_tool,
+    build_note_tools,
+    build_reminder_tools,
+    build_time_tools,
+    build_weather_tool,
 )
 from echo.core.config import Settings
 from echo.core.errors import AIServiceError
 from echo.memory.long_term import LongTermMemory
+from echo.storage.notes import NoteStore
+from echo.storage.reminders import ReminderStore
 
 logger = logging.getLogger(__name__)
 
@@ -36,19 +45,36 @@ set_tracing_disabled(True)
 
 TOOL_INSTRUCTIONS = """\
 # 工具使用規則
-- 你可以在一次回覆中多次、連續或同時呼叫多個工具，直到資訊足夠再作答。
-- 需要確認日期或時間時，使用 get_current_time；涉及數字計算、換算時使用 calculate，不要心算。
-- 對方提到過去的事、約定或喜好，而目前提供的長期記憶不足時，使用 recall_memory 回想。
-- 使用者上傳的檔案若內容被截斷，使用 read_attachment 讀取後續內容。
-- 新聞、時事、天氣、價格、賽事、版本更新等即時資訊，或你不確定、需要查證時，先搜尋，不可憑記憶編造。
-  - 簡單問題：web_search。可使用進階條件：time_range（day／week／month）、category（news、it、science、videos）、site 限定網站、exclude_sites、exact_phrase、exclude_words、filetype、language、page。
+- 你可以在一次回覆中多次、連續或同時呼叫多個工具，直到資訊足夠再作答。不需要工具時直接回答。
+- 工具只是幫助你，回覆仍要保持角色口吻，不要提及工具名稱。
+
+## 時間與計算
+- 確認日期時間用 get_current_time（可指定其他時區）；跨時區換算用 convert_time。
+- 數字計算、換算用 calculate，不要心算；貨幣換算用 convert_currency。
+- 玩遊戲、擲骰或幫忙做決定時，用 roll_dice 或 random_pick，結果以工具實際回傳為準。
+
+## 記憶與關心
+- 對方透露稱呼、生日、喜好、近況、重要約定等值得長期記住的事時，用 remember_note 記下；資訊改變時覆蓋，對方要求忘記時用 forget_note。
+- 「關於對方的筆記」會出現在系統訊息中，請自然地運用，不要逐條複述。
+- 對方提到過去的事而目前資訊不足時，用 recall_memory 回想。
+- 對方要求「提醒我…」時，用 set_reminder 設定（time 使用預設時區，或用 minutes_from_now）；查詢或取消用 list_reminders、cancel_reminder。不可主動替對方設定提醒。
+
+## 對話情境
+- 在群組中，對方提到「上面」、「剛剛大家說的」或你需要更多前後文時，用 read_channel_history。
+- 想表達情緒時，可以用 add_reaction 對對方的訊息加上 1～2 個表情反應（不要每次都用）。
+- 使用者上傳的檔案若內容被截斷，用 read_attachment 讀取後續內容。
+
+## 查詢資訊
+- 新聞、時事、價格、賽事、版本更新等即時資訊，或你不確定、需要查證時，先查再答，不可憑記憶編造。
+  - 天氣：get_weather。
+  - 百科知識（人物、地點、作品、概念）：wikipedia。
+  - 一般問題：web_search，可使用進階條件：time_range（day／week／month）、category（news、it、science、videos）、site、exclude_sites、exact_phrase、exclude_words、filetype、language、page。
   - 需要多角度或中英文並查：multi_search。
   - 複雜、需要比較或深入查證的問題：deep_research。
   - 搜尋摘要不足時，用 web_fetch 閱讀 1～3 個最相關的網址；長文件可依提示用 start 分段讀取。
   - 第一次結果不理想時，更換關鍵字、語言或條件再查。
 - 依據網路資料回答時，以角色口吻自然轉述重點，並把實際引用的網址填入 sources 欄位，不要在 dialogue 中貼網址。
-- 搜尋失敗或查無資料時，誠實表示找不到，不要捏造內容。
-- 不需要工具時直接回答。
+- 查詢失敗或查無資料時，誠實表示找不到，不要捏造內容。
 """
 
 class InvalidOutputError(Exception):
@@ -73,7 +99,13 @@ class RunOutcome:
 
 
 class AIClient:
-    def __init__(self, settings: Settings, history: LongTermMemory):
+    def __init__(
+        self,
+        settings: Settings,
+        history: LongTermMemory,
+        notes: NoteStore,
+        reminders: ReminderStore,
+    ):
         self.settings = settings
         self.client = AsyncOpenAI(
             api_key=settings.api_key,
@@ -82,15 +114,34 @@ class AIClient:
             max_retries=settings.ai_max_retries,
         )
         self.web = WebSearch(settings)
+        self.api = ApiClient(timeout=settings.search_timeout)
         model = OpenAIChatCompletionsModel(model=settings.model, openai_client=self.client)
 
-        time_tool = build_time_tool(settings.timezone)
+        disabled = settings.disabled_tool_names
+
+        def enabled(candidates: list) -> list:
+            return [tool for tool in candidates if tool.name not in disabled]
+
+        time_tools = build_time_tools(settings.timezone)
         web_tools = self.web.build_tools()
-        tools = [time_tool, build_calculator_tool(), *web_tools, build_attachment_tool()]
+        knowledge_tools = [build_weather_tool(self.api), *build_knowledge_tools(self.api)]
+        tools = [
+            *time_tools,
+            build_calculator_tool(),
+            *build_fun_tools(),
+            *web_tools,
+            *knowledge_tools,
+            build_attachment_tool(),
+            *build_note_tools(notes),
+            *build_reminder_tools(reminders, settings.timezone),
+            *build_channel_tools(),
+        ]
         if history.enabled:
             tools.append(build_memory_tool(history, settings.mem0_top_k))
         if settings.enable_research and self.web.enabled:
-            tools.append(build_research_tool(model, [time_tool, *web_tools], settings.research_max_turns))
+            research_tools = enabled([*time_tools, *web_tools, *knowledge_tools])
+            tools.append(build_research_tool(model, research_tools, settings.research_max_turns))
+        tools = enabled(tools)
 
         self.agent = Agent[RunContext](
             name="Echo",
@@ -189,3 +240,4 @@ class AIClient:
     async def close(self) -> None:
         await self.client.close()
         await self.web.close()
+        await self.api.close()

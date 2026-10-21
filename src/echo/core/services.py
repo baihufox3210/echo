@@ -6,6 +6,8 @@ from echo.memory.short_term import ShortTermMemory
 from echo.prompts.loader import PromptLoader
 from echo.storage.character_state import CharacterStateStore
 from echo.storage.database import Database
+from echo.storage.notes import NoteStore
+from echo.storage.reminders import ReminderStore
 from echo.storage.usage import UsageStore
 
 
@@ -18,15 +20,18 @@ class Services:
         self.history = LongTermMemory(base_url=settings.mem0_base_url, timeout=settings.mem0_timeout)
         self.state = CharacterStateStore(database=self.database, legacy_json_path=settings.character_state_path)
         self.usage = UsageStore(database=self.database)
+        self.notes = NoteStore(database=self.database)
+        self.reminders = ReminderStore(database=self.database)
         self.prompts = PromptLoader(prompt_dir=settings.prompt_dir)
 
         self.ai = AIService(
-            client=AIClient(settings=settings, history=self.history),
+            client=AIClient(settings=settings, history=self.history, notes=self.notes, reminders=self.reminders),
             prompt_loader=self.prompts,
             memory=self.memory,
             history=self.history,
             state_store=self.state,
             usage_store=self.usage,
+            notes=self.notes,
             settings=settings,
         )
 

@@ -8,6 +8,26 @@ from echo.ai.safety import PromptGuard
 logger = logging.getLogger(__name__)
 
 EventCallback = Callable[["AgentEvent"], Awaitable[None]]
+HistoryReader = Callable[[int], Awaitable[list["ChannelMessage"]]]
+
+MAX_REACTIONS = 3
+
+
+@dataclass(slots=True)
+class ChannelMessage:
+    author: str
+    content: str
+    created_at: str
+    is_bot: bool = False
+
+
+@dataclass(slots=True)
+class ChatOrigin:
+    """訊息來源的 Discord 資訊，供需要頻道的工具（提醒、讀取對話、表情反應）使用。"""
+
+    channel_id: int | None = None
+    is_dm: bool = False
+    read_history: HistoryReader | None = None
 
 
 @dataclass(slots=True)
@@ -32,6 +52,8 @@ class RunContext:
     attachments: dict[str, str] = field(default_factory=dict)
     seen_urls: set[str] = field(default_factory=set)
     on_event: EventCallback | None = None
+    origin: ChatOrigin = field(default_factory=ChatOrigin)
+    reactions: list[str] = field(default_factory=list)
 
     def consume_budget(self) -> bool:
         if self.tool_budget <= 0:

@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 
 from echo.ai.attachments import IncomingFile, ProcessedFiles, process_files
 from echo.ai.client import AIClient
-from echo.ai.context import AgentEvent, EventCallback, RunContext
+from echo.ai.context import AgentEvent, ChatOrigin, EventCallback, RunContext
 from echo.ai.models import CharacterState, ChatMessage, ChatResult
 from echo.ai.safety import PromptGuard, sanitize_user_input
 from echo.ai.tools import now_text
@@ -18,6 +18,7 @@ from echo.memory.long_term import LongTermMemory
 from echo.memory.short_term import ShortTermMemory
 from echo.prompts.loader import PromptLoader
 from echo.storage.character_state import CharacterStateStore
+from echo.storage.notes import NoteStore
 from echo.storage.usage import UsageStore
 
 logger = logging.getLogger(__name__)
@@ -43,6 +44,7 @@ class AIService:
         history: LongTermMemory,
         state_store: CharacterStateStore,
         usage_store: UsageStore,
+        notes: NoteStore,
         settings: Settings,
     ):
         self.client = client
@@ -51,6 +53,7 @@ class AIService:
         self.history = history
         self.state_store = state_store
         self.usage_store = usage_store
+        self.notes = notes
         self.settings = settings
 
         self.user_lock = KeyedLock()
@@ -64,15 +67,26 @@ class AIService:
         user_message: str,
         files: list[IncomingFile] | None = None,
         on_event: EventCallback | None = None,
+        origin: ChatOrigin | None = None,
+        quoted: str | None = None,
     ) -> ChatResult:
+        """處理一則使用者訊息。
+
+        origin 提供頻道資訊給需要的工具；quoted 為使用者回覆的他人訊息內容（視為不可信資料）。
+        """
         guard = PromptGuard()
-        context = RunContext(user_id=user_id, guard=guard, tool_budget=self.settings.tool_call_budget)
+        context = RunContext(
+            user_id=user_id,
+            guard=guard,
+            tool_budget=self.settings.tool_call_budget,
+            origin=origin or ChatOrigin(),
+        )
         user_message = sanitize_user_input(user_message)
         processed = await process_files(files or [], self.settings)
         context.attachments = {doc.file_id: doc.text for doc in processed.documents}
 
         async with self.user_lock(user_id):
-            messages, previous_state = await self._build_messages(user_id, user_message, processed, guard)
+            messages, previous_state = await self._build_messages(user_id, user_message, processed, guard, quoted)
             context.on_event = self._leak_filter(guard, on_event)
 
             async with self._semaphore:
@@ -117,6 +131,7 @@ class AIService:
             sources=self._verified_sources(response.sources, context),
             usage=outcome.usage,
             tools_used=outcome.tools_used,
+            reactions=list(context.reactions),
         )
 
     async def _build_messages(
@@ -125,18 +140,25 @@ class AIService:
         user_message: str,
         processed: ProcessedFiles,
         guard: PromptGuard,
+        quoted: str | None = None,
     ) -> tuple[list[ChatMessage], CharacterState]:
-        short_term, long_term, state, last_seen = await asyncio.gather(
+        short_term, long_term, state, last_seen, notes = await asyncio.gather(
             self.memory.get(user_id=user_id),
             self._search_long_term(user_id, user_message),
             self.state_store.get(user_id=user_id),
             self.state_store.last_interaction(user_id=user_id),
+            self.notes.get_all(user_id=user_id),
         )
 
         memory_prompt = (
             guard.wrap("long_term_memory", "\n".join(f"- {item}" for item in long_term))
             if long_term
             else "目前沒有相關的長期記憶。"
+        )
+        notes_prompt = (
+            guard.wrap("user_notes", "\n".join(f"- {key}：{value}" for key, value in notes.items()))
+            if notes
+            else "尚未記下任何筆記。"
         )
 
         character_prompt = "\n\n".join([
@@ -149,6 +171,7 @@ class AIService:
             character_prompt,
             f"目前時間：{now_text(self._tz)}",
             f"距離上次互動：{self._describe_gap(last_seen)}",
+            f"關於對方的筆記：\n{notes_prompt}",
             f"相關長期記憶：\n{memory_prompt}",
             guard.system_block(),
         ])
@@ -158,13 +181,21 @@ class AIService:
             *short_term,
             ChatMessage(
                 role="user",
-                content=self._compose_user_content(user_message, processed, guard),
+                content=self._compose_user_content(user_message, processed, guard, quoted),
                 images=processed.images,
             ),
         ], state
 
-    def _compose_user_content(self, user_message: str, processed: ProcessedFiles, guard: PromptGuard) -> str:
+    def _compose_user_content(
+        self,
+        user_message: str,
+        processed: ProcessedFiles,
+        guard: PromptGuard,
+        quoted: str | None = None,
+    ) -> str:
         parts = [user_message]
+        if quoted:
+            parts.append(f"（對方回覆了以下這則訊息）\n{guard.wrap('quoted_message', quoted)}")
         inline = self.settings.attachment_inline_chars
 
         for doc in processed.documents:

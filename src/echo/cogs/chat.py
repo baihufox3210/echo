@@ -1,10 +1,12 @@
 import logging
 import re
+from zoneinfo import ZoneInfo
 
 import discord
 from discord.ext import commands
 
 from echo.ai.attachments import IncomingFile
+from echo.ai.context import ChannelMessage, ChatOrigin
 from echo.core.bot import Bot
 from echo.core.concurrency import RateLimiter
 from echo.core.embeds import reply_embed
@@ -15,6 +17,8 @@ logger = logging.getLogger(__name__)
 
 EMPTY_MESSAGE_PLACEHOLDER = "（呼喚了你，但沒有說話）"
 ATTACHMENT_ONLY_PLACEHOLDER = "（傳送了附件）"
+HISTORY_MESSAGE_CHARS = 500
+QUOTED_MESSAGE_CHARS = 1500
 
 
 class Chat(commands.Cog):
@@ -25,6 +29,7 @@ class Chat(commands.Cog):
             limit=self.settings.rate_limit_per_user,
             window=self.settings.rate_limit_window,
         )
+        self.tz = ZoneInfo(self.settings.timezone)
 
     def _should_respond(self, message: discord.Message) -> bool:
         me = self.bot.user
@@ -66,6 +71,45 @@ class Chat(commands.Cog):
             for attachment in message.attachments
         ]
 
+    def _origin(self, message: discord.Message) -> ChatOrigin:
+        me = self.bot.user
+
+        async def read_history(limit: int) -> list[ChannelMessage]:
+            history = [m async for m in message.channel.history(limit=limit, before=message)]
+            history.reverse()
+            return [
+                ChannelMessage(
+                    author=m.author.display_name,
+                    content=self._describe(m, HISTORY_MESSAGE_CHARS),
+                    created_at=m.created_at.astimezone(self.tz).strftime("%m-%d %H:%M"),
+                    is_bot=m.author.id == me.id,
+                )
+                for m in history
+            ]
+
+        return ChatOrigin(
+            channel_id=message.channel.id,
+            is_dm=message.guild is None,
+            read_history=read_history,
+        )
+
+    @staticmethod
+    def _describe(message: discord.Message, limit: int) -> str:
+        content = message.clean_content.strip()
+        if len(content) > limit:
+            content = content[:limit] + "…"
+        if message.attachments:
+            content += f"［附件：{'、'.join(a.filename for a in message.attachments)}］"
+        return content or "（無文字內容）"
+
+    def _quoted(self, message: discord.Message) -> str | None:
+        """使用者回覆其他訊息時，提供被回覆的內容作為前後文。"""
+        if message.reference is None or not isinstance(message.reference.resolved, discord.Message):
+            return None
+        replied = message.reference.resolved
+        author = "你自己" if replied.author.id == self.bot.user.id else replied.author.display_name
+        return f"{author}：{self._describe(replied, QUOTED_MESSAGE_CHARS)}"
+
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message) -> None:
         if not self._should_respond(message):
@@ -94,6 +138,8 @@ class Chat(commands.Cog):
                     user_message=content,
                     files=files,
                     on_event=streamer.handle,
+                    origin=self._origin(message),
+                    quoted=self._quoted(message),
                 )
         except EchoError:
             logger.exception("Chat service failed")
@@ -108,6 +154,12 @@ class Chat(commands.Cog):
             result.response.dialogue,
             embed=reply_embed(result, show_state=self.settings.show_state_embed),
         )
+
+        for emoji in result.reactions:
+            try:
+                await message.add_reaction(emoji)
+            except discord.HTTPException:
+                logger.debug("Failed to add reaction %s", emoji)
 
     @staticmethod
     async def _notify(message: discord.Message, text: str, delete_after: float | None = None) -> None:

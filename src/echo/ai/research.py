@@ -16,7 +16,7 @@ RESEARCH_INSTRUCTIONS = """\
 
 工作方式：
 1. 先拆解問題，規劃需要查證的面向。
-2. 使用 multi_search 一次查詢多個角度（可中英文並查），或用 web_search 搭配 site、time_range、filetype 等進階條件。
+2. 使用 multi_search 一次查詢多個角度（可中英文並查），或用 web_search 搭配 site、time_range、filetype 等進階條件；百科知識可先查 wikipedia，天氣用 get_weather。
 3. 挑選最可信、最相關的 2～4 個來源以 web_fetch 閱讀全文；長文件可用 start 分段讀取。
 4. 若資訊互相矛盾或不足，換關鍵字再查一輪，直到能可靠回答或確定查不到。
 5. 優先採用官方、權威或第一手來源，注意資料日期。
