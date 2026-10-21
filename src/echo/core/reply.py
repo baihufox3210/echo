@@ -59,7 +59,7 @@ class ReplyStreamer:
                 self._text = event.text
             case "retry":
                 self._text = ""
-                self._status = "🔄 重新整理回覆中…"
+                self._status = "↻ 重新整理回覆中…"
 
         self._dirty.set()
         if self._task is None:
@@ -71,7 +71,7 @@ class ReplyStreamer:
             if len(text) > STREAM_PREVIEW_LIMIT:
                 text = text[:STREAM_PREVIEW_LIMIT] + "…"
             return text + CURSOR
-        return self._status or "💭 思考中…"
+        return self._status or "✧ 思考中…"
 
     async def _run(self) -> None:
         while not self._closed:

@@ -103,16 +103,16 @@ def test_meta_embed_shows_affection_delta_thoughts_and_suggestions():
     assert "♡ 好感度" not in values
     # 只用文字符號 ♡，不含會被轉成彩色圖示的 emoji
     assert "💗" not in "".join(values)
-    assert "・她很開心" in values["💭 思緒摘要"]
-    assert values["🎬 行動推薦"].startswith("A. 留下來聽她唱歌\nB. 問她最近在寫什麼")
-    assert "[example.com](https://example.com/a)" in values["📚 參考來源"]
-    assert embed.footer.text == "🔧 搜尋×2、閱讀網頁 · 🪙 1,234 tokens"
+    assert "・她很開心" in values["※ 思緒摘要"]
+    assert values["▸ 行動推薦"].startswith("A. 留下來聽她唱歌\nB. 問她最近在寫什麼")
+    assert "[example.com](https://example.com/a)" in values["✎ 參考來源"]
+    assert embed.footer.text == "工具：搜尋×2、閱讀網頁 · 1,234 tokens"
 
 
 def test_meta_embed_full_state_when_enabled():
     embed = reply_embed(_result(), show_state=True)
     values = {field.name: field.value for field in embed.fields}
-    assert "▲2" in values["♡ 好感度"] and "▼5" in values["⚡ 體力"]
+    assert "▲2" in values["♡ 好感度"] and "▼5" in values["✦ 體力"]
 
 
 def test_meta_embed_absent_when_nothing_to_show():
@@ -125,3 +125,30 @@ def test_meta_embed_absent_when_nothing_to_show():
 def test_progress_bar():
     assert progress_bar(0) == "▱" * 10
     assert progress_bar(55) == "▰" * 6 + "▱" * 4
+
+
+# Unicode 中帶有 emoji 屬性的 BMP 字元範圍（Discord 會將其轉為彩色圖示）
+BMP_EMOJI = [
+    (0x203C, 0x203C), (0x2049, 0x2049), (0x2194, 0x2199), (0x21A9, 0x21AA), (0x231A, 0x231B),
+    (0x23E9, 0x23FA), (0x25AA, 0x25AB), (0x25B6, 0x25B6), (0x25C0, 0x25C0), (0x25FB, 0x25FE),
+    (0x2600, 0x2604), (0x2614, 0x2615), (0x2620, 0x2623), (0x2640, 0x2642), (0x2648, 0x2653),
+    (0x2660, 0x2660), (0x2663, 0x2663), (0x2665, 0x2666), (0x26A0, 0x26A1), (0x2705, 0x2705),
+    (0x2708, 0x270D), (0x270F, 0x270F), (0x2714, 0x2714), (0x2728, 0x2728), (0x2764, 0x2764),
+    (0x27A1, 0x27A1), (0x2B50, 0x2B55),
+]
+
+
+def has_emoji(text: str) -> bool:
+    for char in text:
+        code = ord(char)
+        if code >= 0x1F000 or code == 0xFE0F or any(lo <= code <= hi for lo, hi in BMP_EMOJI):
+            return True
+    return False
+
+
+def test_embeds_use_text_symbols_not_emoji():
+    result = _result(thoughts=["a"], suggestions=["b"], sources=["https://example.com"])
+    for embed in (reply_embed(result, show_state=False), reply_embed(result, show_state=True)):
+        texts = [field.name for field in embed.fields] + [embed.footer.text or ""]
+        texts += [field.value for field in embed.fields if not field.name.endswith("參考來源")]
+        assert not any(has_emoji(t) for t in texts), texts

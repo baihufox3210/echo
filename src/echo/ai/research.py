@@ -39,7 +39,7 @@ async def finalize_without_tools(
 ) -> RunErrorHandlerResult:
     """回合數用盡時，以禁止呼叫工具的設定再執行一次，根據既有資訊產出最終答案。"""
     context = data.context.context
-    await context.emit(AgentEvent("tool", "📝 整理已蒐集的資訊"))
+    await context.emit(AgentEvent("tool", "▹ 整理已蒐集的資訊"))
 
     finalizer = agent.clone(
         model_settings=agent.model_settings.resolve(ModelSettings(tool_choice="none")),
@@ -75,7 +75,7 @@ def build_research_tool(model, tools: list[FunctionTool], max_turns: int) -> Fun
             question: 要調查的完整問題，包含必要的背景與限制條件。
         """
         context = ctx.context
-        await context.emit(AgentEvent("tool", "🔬 深入研究中…"))
+        await context.emit(AgentEvent("tool", "▹ 深入研究中…"))
 
         result = await Runner.run(
             researcher,

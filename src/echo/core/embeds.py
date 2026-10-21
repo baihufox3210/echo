@@ -8,9 +8,9 @@ from echo.storage.usage import UsageSummary
 
 STATE_FIELDS = (
     ("affection", "♡ 好感度"),
-    ("trust", "🤝 信任度"),
-    ("mood", "🎵 心情"),
-    ("stamina", "⚡ 體力"),
+    ("trust", "◇ 信任度"),
+    ("mood", "♪ 心情"),
+    ("stamina", "✦ 體力"),
 )
 TOOL_LABELS = {
     "web_search": "搜尋",
@@ -59,7 +59,7 @@ def add_state_fields(embed: discord.Embed, state: CharacterState, previous: Char
 
 
 def _affection_change(before: int, after: int) -> str:
-    # 使用一般文字符號 ♡（U+2661），不使用會被 Discord 轉成彩色圖示的 emoji
+    # 使用一般文字符號 ♡（U+2661），不使用會被 Discord 轉成彩色圖示的 emoji；其他欄位圖示亦同
     diff = after - before
     change = f"♡ **+{diff}**" if diff > 0 else (f"♡ **{diff}**" if diff < 0 else "♡ 無變動")
     return f"{change}（目前 {after} / 100）"
@@ -92,28 +92,28 @@ def reply_embed(result: ChatResult, show_state: bool) -> discord.Embed | None:
 
     if response.thoughts:
         embed.add_field(
-            name="💭 思緒摘要",
+            name="※ 思緒摘要",
             value="\n".join(f"・{thought}" for thought in response.thoughts)[:1024],
             inline=False,
         )
 
     if response.suggestions:
         options = (f"{chr(65 + i)}. {text}" for i, text in enumerate(response.suggestions))
-        embed.add_field(name="🎬 行動推薦", value="\n".join(options)[:1024], inline=False)
+        embed.add_field(name="▸ 行動推薦", value="\n".join(options)[:1024], inline=False)
 
     if result.sources:
         lines = [
             f"{index}. [{discord.utils.escape_markdown(urlsplit(url).netloc or url)}]({url})"
             for index, url in enumerate(result.sources, start=1)
         ]
-        embed.add_field(name="📚 參考來源", value="\n".join(lines)[:1024], inline=False)
+        embed.add_field(name="✎ 參考來源", value="\n".join(lines)[:1024], inline=False)
 
     footer = []
     if result.tools_used:
         counts = Counter(TOOL_LABELS.get(name, name) for name in result.tools_used)
-        footer.append("🔧 " + "、".join(f"{name}×{n}" if n > 1 else name for name, n in counts.items()))
+        footer.append("工具：" + "、".join(f"{name}×{n}" if n > 1 else name for name, n in counts.items()))
     if result.usage.total_tokens:
-        footer.append(f"🪙 {result.usage.total_tokens:,} tokens")
+        footer.append(f"{result.usage.total_tokens:,} tokens")
     if footer:
         embed.set_footer(text=" · ".join(footer))
 

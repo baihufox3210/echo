@@ -475,7 +475,7 @@ class WebSearch:
                 return BUDGET_EXHAUSTED
 
             full_query = build_query(query, site, exclude_sites, exact_phrase, exclude_words, filetype)
-            await context.emit(AgentEvent("tool", f"🔍 搜尋「{truncate(full_query, 60)}」"))
+            await context.emit(AgentEvent("tool", f"▹ 搜尋「{truncate(full_query, 60)}」"))
             payload = await self.search(
                 full_query, time_range=time_range, category=category, language=language,
                 page=page, site=site, exclude_sites=exclude_sites,
@@ -500,7 +500,7 @@ class WebSearch:
             if not context.consume_budget():
                 return BUDGET_EXHAUSTED
 
-            await context.emit(AgentEvent("tool", f"🔍 同時搜尋 {len(queries)} 組關鍵字"))
+            await context.emit(AgentEvent("tool", f"▹ 同時搜尋 {len(queries)} 組關鍵字"))
             payload = await self.multi_search(queries, time_range=time_range, category=category)
             return self._wrap_results(context, "multi_search", payload)
 
@@ -516,7 +516,7 @@ class WebSearch:
             if not context.consume_budget():
                 return BUDGET_EXHAUSTED
 
-            await context.emit(AgentEvent("tool", f"📄 閱讀 {truncate(urlsplit(url).netloc or url, 60)}"))
+            await context.emit(AgentEvent("tool", f"▹ 閱讀 {truncate(urlsplit(url).netloc or url, 60)}"))
             result = await self.read_page(url, start=max(0, start))
             if not result.startswith("讀取網頁失敗"):
                 context.seen_urls.add(url)

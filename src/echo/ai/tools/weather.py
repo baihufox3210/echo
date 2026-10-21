@@ -80,7 +80,7 @@ def build_weather_tool(api: ApiClient) -> FunctionTool:
         if not context.consume_budget():
             return BUDGET_EXHAUSTED
 
-        await context.emit(AgentEvent("tool", f"🌤️ 查詢{location}的天氣"))
+        await context.emit(AgentEvent("tool", f"▹ 查詢{location}的天氣"))
         try:
             result = await lookup_weather(api, location, min(max(days, 1), 7))
         except (ApiError, KeyError, IndexError, TypeError):

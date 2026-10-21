@@ -15,7 +15,7 @@ class Reminder(commands.GroupCog, group_name="reminder", group_description="管�
     @app_commands.command(name="list", description="查看你的提醒")
     async def list_reminders(self, interaction: discord.Interaction):
         reminders = await self.store.list_user(interaction.user.id)
-        embed = discord.Embed(title="⏰ 我的提醒", color=EMBED_COLOR)
+        embed = discord.Embed(title="◷ 我的提醒", color=EMBED_COLOR)
         if not reminders:
             embed.description = "目前沒有任何提醒。和 Echo 說「提醒我…」就能設定喔。"
         for reminder in reminders[:25]:

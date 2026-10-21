@@ -49,7 +49,7 @@ class Maintenance(commands.Cog):
             return
 
         for reminder in reminders:
-            content = f"⏰ {reminder.content}"
+            content = f"◷ {reminder.content}"
             if datetime.now(UTC) - reminder.due_at > LATE_THRESHOLD:
                 content += f"\n-# 原定 {discord.utils.format_dt(reminder.due_at, 'f')}，因 Bot 離線延遲送達"
             await self._send_reminder(reminder.user_id, reminder.channel_id, content)
