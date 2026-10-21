@@ -37,7 +37,8 @@ class FakeClient:
         return RunOutcome(
             response=AIResponse(
                 dialogue=self.reply(messages, context),
-                action="smile",
+                thoughts=["測試思緒"],
+                suggestions=[],
                 state=CharacterState(affection=5, mood=60, stamina=90, trust=1),
                 sources=["https://real.example/page", "https://phishing.example"],
             ),

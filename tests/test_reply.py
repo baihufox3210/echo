@@ -56,9 +56,10 @@ async def test_streamer_sends_once_then_edits_and_finishes_with_embed():
 
     log = source.channel.log
     assert log[0] == ("send", "🔍 搜尋", None, True)
-    assert sum(1 for entry in log if entry[0] == "send") == 1
     assert ("edit", "你好 ▌", None) in log
-    assert log[-1] == ("edit", "你好呀", embed)
+    # 對話以編輯完成（不帶 embed），資訊卡另成獨立的第二則訊息
+    assert ("edit", "你好呀", None) in log
+    assert log[-1] == ("send", None, embed, False)
 
 
 async def test_streamer_without_events_sends_split_chunks():
@@ -69,29 +70,53 @@ async def test_streamer_without_events_sends_split_chunks():
     await streamer.finish("a" * 4100, embed=embed)
 
     log = source.channel.log
-    assert [len(entry[1]) for entry in log] == [2000, 2000, 100]
-    assert [entry[3] for entry in log] == [True, False, False]
-    assert log[-1][2] is embed and log[0][2] is None
+    # 三段對話各自成訊息，資訊卡再成獨立的第四則訊息
+    assert [len(entry[1]) if entry[1] else 0 for entry in log] == [2000, 2000, 100, 0]
+    assert [entry[3] for entry in log] == [True, False, False, False]
+    assert [entry[2] for entry in log] == [None, None, None, embed]
 
 
-def test_reply_embed_shows_state_changes_and_sources():
-    result = ChatResult(
+def _result(*, affection=12, prev_affection=10, thoughts=None, suggestions=None, sources=None):
+    return ChatResult(
         response=AIResponse(
-            dialogue="hi", action="", sources=[],
-            state=CharacterState(affection=12, mood=50, stamina=40, trust=5),
+            dialogue="hi", thoughts=thoughts or [], suggestions=suggestions or [], sources=[],
+            state=CharacterState(affection=affection, mood=50, stamina=40, trust=5),
         ),
-        previous_state=CharacterState(affection=10, mood=50, stamina=45, trust=5),
-        sources=["https://example.com/a"],
+        previous_state=CharacterState(affection=prev_affection, mood=50, stamina=45, trust=5),
+        sources=sources or [],
         usage=TokenUsage(requests=2, input_tokens=1000, output_tokens=234),
         tools_used=["web_search", "web_search", "web_fetch"],
     )
-    embed = reply_embed(result, show_state=True)
+
+
+def test_meta_embed_shows_affection_delta_thoughts_and_suggestions():
+    result = _result(
+        thoughts=["她很開心", "想多聊一會"],
+        suggestions=["留下來聽她唱歌", "問她最近在寫什麼"],
+        sources=["https://example.com/a"],
+    )
+    embed = reply_embed(result, show_state=False)
     values = {field.name: field.value for field in embed.fields}
 
-    assert "▲2" in values["💗 好感度"] and "▼5" in values["⚡ 體力"]
+    # 預設只呈現好感度變動量，不含完整進度條
+    assert values["💗 好感度變動"] == "**+2**（目前 12 / 100）"
+    assert "💗 好感度" not in values
+    assert "・她很開心" in values["💭 思緒摘要"]
+    assert values["🎬 行動推薦"].startswith("A. 留下來聽她唱歌\nB. 問她最近在寫什麼")
     assert "[example.com](https://example.com/a)" in values["📚 參考來源"]
     assert embed.footer.text == "🔧 搜尋×2、閱讀網頁 · 🪙 1,234 tokens"
-    result.sources = []
+
+
+def test_meta_embed_full_state_when_enabled():
+    embed = reply_embed(_result(), show_state=True)
+    values = {field.name: field.value for field in embed.fields}
+    assert "▲2" in values["💗 好感度"] and "▼5" in values["⚡ 體力"]
+
+
+def test_meta_embed_absent_when_nothing_to_show():
+    result = _result(affection=10, prev_affection=10)
+    result.tools_used = []
+    result.usage = TokenUsage()
     assert reply_embed(result, show_state=False) is None
 
 

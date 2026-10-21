@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     # 主要模型過載（429／5xx）時改用的備援模型，留空則不使用
     fallback_model: str | None = None
     model_temperature: float | None = Field(default=None, ge=0, le=2)
+    # 單次回覆的最大輸出 token 數；過小會導致長回覆被截斷
+    max_output_tokens: int | None = Field(default=4096, ge=256)
     ai_timeout: float = Field(default=90.0, gt=0)
     ai_max_retries: int = Field(default=2, ge=0)
     ai_max_turns: int = Field(default=10, ge=1)

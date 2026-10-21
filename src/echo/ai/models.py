@@ -29,8 +29,19 @@ class CharacterState(BaseModel):
 
 
 class AIResponse(BaseModel):
-    dialogue: str = Field(description="要直接傳送給使用者的完整回覆內容，不要在此列出來源網址")
-    action: str = Field(description="角色本輪動作或神態的簡短摘要")
+    dialogue: str = Field(
+        description=(
+            "要直接傳送給使用者的角色對話，依序包含：動作／神態描寫、『表面台詞』、（內心獨白）。"
+            "不要在此放入好感度標記、思緒摘要、行動推薦、人物狀態板或來源網址——那些另有欄位。"
+            "若需摘要長篇內容（如檔案、網頁），請精簡重點，不要逐字照抄。"
+        )
+    )
+    thoughts: list[str] = Field(
+        description="思緒摘要：她注意到什麼、最在意什麼、想做什麼、害怕什麼；無則給空陣列。"
+    )
+    suggestions: list[str] = Field(
+        description="行動推薦：2～4 個可選行動，符合場景與好感度；不需要時給空陣列。"
+    )
     state: CharacterState = Field(description="本次互動結束後的角色狀態絕對值")
     sources: list[str] = Field(description="本次回答實際引用的網址（最多 5 個，未使用網路資料則為空陣列）")
 
