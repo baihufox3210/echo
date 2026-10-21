@@ -13,3 +13,7 @@ wheels/
 
 character_state.json
 memory.db
+# Data
+data/
+*.db-*
+*.migrated

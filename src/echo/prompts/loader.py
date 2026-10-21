@@ -2,34 +2,46 @@ from pathlib import Path
 
 from echo.core.errors import PromptError
 
+SYSTEM_PROMPT_FILES = (
+    "system/aemeath.md",
+    "system/behavior.md",
+    "system/safety.md",
+    "context/relationship.md",
+    "context/world.md",
+)
+CHARACTER_STATE_PROMPT_FILE = "context/character_state.md"
+
+
 class PromptLoader:
+    """載入 Prompt 檔案並依修改時間快取，修改檔案後無需重啟即可生效。"""
+
     def __init__(self, prompt_dir: Path):
         self.prompt_dir = prompt_dir.resolve()
+        self._cache: dict[Path, tuple[float, str]] = {}
 
     def load(self, name: str) -> str:
         path = (self.prompt_dir / name).resolve()
 
-        if not str(path).startswith(str(self.prompt_dir)):
+        if not path.is_relative_to(self.prompt_dir):
             raise PromptError(f"Invalid prompt path: {name}")
 
-        if not path.exists():
-            raise FileNotFoundError(f"Prompt not found: {path}")
-
         try:
-            return path.read_text(encoding="utf-8").strip()
+            mtime = path.stat().st_mtime
+            cached = self._cache.get(path)
+            if cached and cached[0] == mtime:
+                return cached[1]
+
+            text = path.read_text(encoding="utf-8").strip()
+        except FileNotFoundError as error:
+            raise PromptError(f"Prompt not found: {path}") from error
         except OSError as error:
             raise PromptError(f"Prompt could not be loaded: {path}") from error
 
-    def load_system_prompt(self) -> str:
-        parts = [
-            self.load("system/aemeath.md"),
-            self.load("system/behavior.md"),
-            self.load("system/safety.md"),
-            self.load("context/relationship.md"),
-            self.load("context/world.md"),
-        ]
+        self._cache[path] = (mtime, text)
+        return text
 
-        return "\n\n".join(parts)
-    
+    def load_system_prompt(self) -> str:
+        return "\n\n".join(self.load(name) for name in SYSTEM_PROMPT_FILES)
+
     def load_character_state_prompt(self) -> str:
-        return self.load("context/character_state.md")
+        return self.load(CHARACTER_STATE_PROMPT_FILE)

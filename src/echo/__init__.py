@@ -1,2 +1,1 @@
-def main() -> None:
-    print("Hello from echo!")
+__version__ = "0.2.0"

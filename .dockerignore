@@ -1,0 +1,15 @@
+.git
+.venv
+.env
+.env.*
+!.env.example
+data
+tests
+searxng
+**/__pycache__
+*.py[oc]
+*.db
+*.db-*
+character_state.json*
+Dockerfile
+docker-compose.yml

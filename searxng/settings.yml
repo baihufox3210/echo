@@ -1,0 +1,26 @@
+# Echo 使用的最小 SearXNG 設定，其餘沿用官方預設值
+use_default_settings: true
+
+general:
+  instance_name: echo-searxng
+
+server:
+  # 實際金鑰由環境變數 SEARXNG_SECRET 覆寫
+  secret_key: "change-me"
+  # 僅供內部網路的 Bot 使用，不需要限流器與圖片代理
+  limiter: false
+  image_proxy: false
+  public_instance: false
+
+search:
+  safe_search: 1
+  autocomplete: ""
+  default_lang: "zh-TW"
+  # Echo 需要 JSON 格式的搜尋結果
+  formats:
+    - html
+    - json
+
+outgoing:
+  request_timeout: 5.0
+  max_request_timeout: 10.0

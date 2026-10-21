@@ -1,33 +1,40 @@
 from echo.ai.client import AIClient
 from echo.ai.service import AIService
-
 from echo.core.config import Settings
-
-from echo.memory.short_term import ShortTermMemory
 from echo.memory.long_term import LongTermMemory
-from echo.storage.character_state import CharacterStateStore
-
+from echo.memory.short_term import ShortTermMemory
 from echo.prompts.loader import PromptLoader
+from echo.storage.character_state import CharacterStateStore
+from echo.storage.database import Database
+
 
 class Services:
     def __init__(self, settings: Settings):
-        self.memory = ShortTermMemory(database_path=settings.memory_database_path)
-        self.history = LongTermMemory(base_url=settings.mem0_base_url)
-        self.state = CharacterStateStore(path=settings.character_state_path)
-        
+        self.settings = settings
+        self.database = Database(path=settings.memory_database_path)
+
+        self.memory = ShortTermMemory(database=self.database, max_messages=settings.short_term_max_messages)
+        self.history = LongTermMemory(base_url=settings.mem0_base_url, timeout=settings.mem0_timeout)
+        self.state = CharacterStateStore(database=self.database, legacy_json_path=settings.character_state_path)
         self.prompts = PromptLoader(prompt_dir=settings.prompt_dir)
-        
+
         self.ai = AIService(
             client=AIClient(settings=settings),
             prompt_loader=self.prompts,
             memory=self.memory,
             history=self.history,
-            state_store=self.state
+            state_store=self.state,
+            settings=settings,
         )
-        
-    async def initialize(self):
-        await self.memory.initialize()
 
-    async def close(self):
-        await self.ai.client.close()
+    async def initialize(self) -> None:
+        await self.database.connect()
+        await self.state.initialize()
+        # 啟動時即驗證 Prompt 檔案存在，避免執行中才發現錯誤
+        self.prompts.load_system_prompt()
+        self.prompts.load_character_state_prompt()
+
+    async def close(self) -> None:
+        await self.ai.close()
         await self.history.close()
+        await self.database.close()

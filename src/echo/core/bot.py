@@ -1,4 +1,3 @@
-import os
 import logging
 
 import discord
@@ -8,51 +7,35 @@ from echo.core.services import Services
 
 logger = logging.getLogger(__name__)
 
-ALLOWED_EXTENSIONS = {"chat", "memory"}
+EXTENSIONS = ("echo.cogs.chat", "echo.cogs.memory")
 
 
 class Bot(commands.Bot):
     def __init__(self, services: Services):
+        intents = discord.Intents.default()
+        intents.message_content = True
+
         super().__init__(
-            command_prefix="♡",
-            intents=discord.Intents.all(),
+            command_prefix=commands.when_mentioned,
+            intents=intents,
+            help_command=None,
+            # 預設不 ping 任何人，包括 @everyone、身分組與被回覆的使用者
+            allowed_mentions=discord.AllowedMentions.none(),
         )
 
         self.services = services
 
-    async def setup_hook(self):
-        await self.load_extensions()
-        await self.tree.sync()
-
-    async def load_extensions(self):
-        base_dir = os.path.dirname(os.path.dirname(__file__))
-        cogs_dir = os.path.join(base_dir, "cogs")
-
-        if not os.path.exists(cogs_dir):
-            logger.info("Cogs directory not found: %s", cogs_dir)
-            return
-
-        for file in os.listdir(cogs_dir):
-            if not file.endswith(".py") or file.startswith("_"):
-                continue
-
-            extension_name = file[:-3]
-
-            if extension_name not in ALLOWED_EXTENSIONS:
-                logger.warning("Extension blocked (not in whitelist): %s", extension_name)
-                continue
-
-            extension = f"echo.cogs.{extension_name}"
-
+    async def setup_hook(self) -> None:
+        for extension in EXTENSIONS:
             try:
-                await super().load_extension(extension)
+                await self.load_extension(extension)
                 logger.info("Extension loaded: %s", extension)
-            except Exception as e:
-                logger.error("Extension load failed: %s - %s", extension, e.__class__.__name__)
+            except commands.ExtensionError:
+                logger.exception("Extension load failed: %s", extension)
 
-    async def on_ready(self):
-        print("=" * 40)
-        print("Discord Bot 啟動成功")
-        print(f"User : {self.user}")
-        print(f"ID   : {self.user.id}")
-        print("=" * 40)
+        if self.services.settings.sync_commands:
+            synced = await self.tree.sync()
+            logger.info("Synced %d application commands", len(synced))
+
+    async def on_ready(self) -> None:
+        logger.info("Discord bot ready: %s (ID: %s), guilds=%d", self.user, self.user.id, len(self.guilds))
