@@ -5,6 +5,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from echo.core.bot import Bot
+from echo.core.embeds import EMBED_COLOR, add_state_fields
 from echo.core.errors import EchoError
 
 logger = logging.getLogger(__name__)
@@ -24,15 +25,20 @@ class Memory(commands.GroupCog, group_name="memory", group_description="管理 E
     async def status(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
 
-        state = await self.services.state.get(user_id=interaction.user.id)
-        history = await self.services.memory.get(user_id=interaction.user.id)
+        user_id = interaction.user.id
+        state = await self.services.state.get(user_id=user_id)
+        history = await self.services.memory.get(user_id=user_id)
+        last_seen = await self.services.state.last_interaction(user_id=user_id)
 
-        embed = discord.Embed(title="角色狀態", color=discord.Color.pink())
-        embed.add_field(name="好感度", value=f"{state.affection} / 100")
-        embed.add_field(name="信任度", value=f"{state.trust} / 100")
-        embed.add_field(name="心情", value=f"{state.mood} / 100")
-        embed.add_field(name="體力", value=f"{state.stamina} / 100")
-        embed.set_footer(text=f"短期記憶：{len(history)} 則訊息")
+        embed = discord.Embed(title="角色狀態", color=EMBED_COLOR)
+        embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.display_avatar.url)
+        add_state_fields(embed, state)
+        embed.add_field(name="🧠 短期記憶", value=f"{len(history)} 則訊息", inline=True)
+        embed.add_field(
+            name="🕒 上次互動",
+            value=discord.utils.format_dt(last_seen, "R") if last_seen else "尚未互動",
+            inline=True,
+        )
 
         await interaction.followup.send(embed=embed, ephemeral=True)
 
@@ -46,6 +52,7 @@ class Memory(commands.GroupCog, group_name="memory", group_description="管理 E
             await self.services.history.delete_user(user_id=user_id)
             await self.services.memory.clear(user_id=user_id)
             await self.services.state.delete_user(user_id=user_id)
+            await self.services.usage.delete_user(user_id=user_id)
 
         await interaction.followup.send(f"已刪除 {interaction.user.display_name} 的所有記憶。", ephemeral=True)
 

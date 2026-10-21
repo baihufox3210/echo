@@ -16,6 +16,7 @@ dependencies = [
     "openai-agents>=0.22.0",
     "pydantic>=2.13.4",
     "pydantic-settings>=2.15.0",
+    "pypdf>=6.0",
 ]
 
 [project.scripts]

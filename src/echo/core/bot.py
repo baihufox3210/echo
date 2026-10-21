@@ -7,7 +7,7 @@ from echo.core.services import Services
 
 logger = logging.getLogger(__name__)
 
-EXTENSIONS = ("echo.cogs.chat", "echo.cogs.memory")
+EXTENSIONS = ("echo.cogs.chat", "echo.cogs.memory", "echo.cogs.usage", "echo.cogs.maintenance")
 
 
 class Bot(commands.Bot):

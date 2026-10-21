@@ -19,7 +19,29 @@ class Settings(BaseSettings):
     model_temperature: float | None = Field(default=None, ge=0, le=2)
     ai_timeout: float = Field(default=90.0, gt=0)
     ai_max_retries: int = Field(default=2, ge=0)
-    ai_max_turns: int = Field(default=8, ge=1)
+    ai_max_turns: int = Field(default=10, ge=1)
+    ai_max_runs: int = Field(default=2, ge=1, le=5)
+    tool_call_budget: int = Field(default=24, ge=1)
+    enable_research: bool = True
+    research_max_turns: int = Field(default=12, ge=2)
+
+    # 回覆呈現
+    stream_responses: bool = True
+    stream_edit_interval: float = Field(default=1.2, ge=0.5)
+    show_state_embed: bool = True
+
+    # 附件
+    enable_vision: bool = True
+    max_attachments: int = Field(default=4, ge=0, le=10)
+    attachment_max_bytes: int = Field(default=8_000_000, ge=10_000)
+    attachment_inline_chars: int = Field(default=6_000, ge=500)
+
+    # 角色狀態自然衰減（長時間未互動時好感度下降）
+    state_decay_enabled: bool = True
+    state_decay_after_days: int = Field(default=3, ge=1)
+    state_decay_amount: int = Field(default=1, ge=1, le=100)
+
+    healthcheck_file: Path = Path("/tmp/echo-heartbeat")
 
     # 併發與流量限制
     max_concurrent_requests: int = Field(default=8, ge=1)

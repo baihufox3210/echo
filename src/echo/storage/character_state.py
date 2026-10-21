@@ -1,5 +1,6 @@
 import json
 import logging
+from datetime import UTC, datetime
 from pathlib import Path
 
 from echo.ai.models import CharacterState
@@ -36,17 +37,44 @@ class CharacterStateStore:
         async with self.database.transaction() as db:
             await db.execute(
                 """
-                INSERT INTO character_state (user_id, affection, mood, stamina, trust, updated_at)
-                VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                INSERT INTO character_state
+                    (user_id, affection, mood, stamina, trust, updated_at, last_interaction_at)
+                VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 ON CONFLICT(user_id) DO UPDATE SET
                     affection = excluded.affection,
                     mood = excluded.mood,
                     stamina = excluded.stamina,
                     trust = excluded.trust,
-                    updated_at = excluded.updated_at
+                    updated_at = excluded.updated_at,
+                    last_interaction_at = excluded.last_interaction_at
                 """,
                 (user_id, state.affection, state.mood, state.stamina, state.trust),
             )
+
+    async def last_interaction(self, user_id: int) -> datetime | None:
+        row = await self.database.fetchone(
+            "SELECT COALESCE(last_interaction_at, updated_at) FROM character_state WHERE user_id = ?",
+            (user_id,),
+        )
+        if row is None or row[0] is None:
+            return None
+        return datetime.fromisoformat(row[0]).replace(tzinfo=UTC)
+
+    async def decay(self, after_days: int, amount: int) -> int:
+        """長時間未互動的使用者每天降低好感度，回傳受影響的人數。"""
+        async with self.database.transaction() as db:
+            cursor = await db.execute(
+                """
+                UPDATE character_state
+                SET affection = MAX(0, affection - ?),
+                    last_decay_at = date('now')
+                WHERE affection > 0
+                AND julianday('now') - julianday(COALESCE(last_interaction_at, updated_at)) >= ?
+                AND (last_decay_at IS NULL OR last_decay_at < date('now'))
+                """,
+                (amount, after_days),
+            )
+            return cursor.rowcount
 
     async def delete_user(self, user_id: int) -> None:
         async with self.database.transaction() as db:

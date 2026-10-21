@@ -27,7 +27,23 @@ CREATE TABLE IF NOT EXISTS character_state (
     trust INTEGER NOT NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS token_usage (
+    user_id INTEGER NOT NULL,
+    day TEXT NOT NULL,
+    requests INTEGER NOT NULL DEFAULT 0,
+    input_tokens INTEGER NOT NULL DEFAULT 0,
+    output_tokens INTEGER NOT NULL DEFAULT 0,
+    messages INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, day)
+);
 """
+
+# 既有資料庫需補上的欄位：(資料表, 欄位, 定義)
+COLUMN_MIGRATIONS = (
+    ("character_state", "last_interaction_at", "TIMESTAMP"),
+    ("character_state", "last_decay_at", "TEXT"),
+)
 
 
 class Database:
@@ -47,9 +63,17 @@ class Database:
             await self._db.execute("PRAGMA synchronous=NORMAL")
             await self._db.execute("PRAGMA busy_timeout=5000")
             await self._db.executescript(SCHEMA)
+            await self._migrate()
             await self._db.commit()
         except aiosqlite.Error as error:
             raise StorageError("Database could not be initialized") from error
+
+    async def _migrate(self) -> None:
+        for table, column, definition in COLUMN_MIGRATIONS:
+            async with self._db.execute(f"PRAGMA table_info({table})") as cursor:
+                columns = {row[1] for row in await cursor.fetchall()}
+            if column not in columns:
+                await self._db.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
     @property
     def db(self) -> aiosqlite.Connection:

@@ -1,0 +1,80 @@
+from collections import Counter
+from urllib.parse import urlsplit
+
+import discord
+
+from echo.ai.models import CharacterState, ChatResult
+from echo.storage.usage import UsageSummary
+
+STATE_FIELDS = (
+    ("affection", "💗 好感度"),
+    ("trust", "🤝 信任度"),
+    ("mood", "🎵 心情"),
+    ("stamina", "⚡ 體力"),
+)
+TOOL_LABELS = {
+    "web_search": "搜尋",
+    "multi_search": "多重搜尋",
+    "web_fetch": "閱讀網頁",
+    "deep_research": "深入研究",
+    "recall_memory": "回想記憶",
+    "read_attachment": "讀取附件",
+    "calculate": "計算",
+    "get_current_time": "查看時間",
+}
+EMBED_COLOR = discord.Color.from_rgb(255, 143, 177)
+
+
+def progress_bar(value: int, maximum: int = 100, length: int = 10) -> str:
+    filled = round(max(0, min(value, maximum)) / maximum * length)
+    return "▰" * filled + "▱" * (length - filled)
+
+
+def delta_text(before: int, after: int) -> str:
+    diff = after - before
+    if diff > 0:
+        return f" `▲{diff}`"
+    if diff < 0:
+        return f" `▼{-diff}`"
+    return ""
+
+
+def add_state_fields(embed: discord.Embed, state: CharacterState, previous: CharacterState | None = None) -> None:
+    for key, label in STATE_FIELDS:
+        value = getattr(state, key)
+        change = delta_text(getattr(previous, key), value) if previous else ""
+        embed.add_field(name=label, value=f"{progress_bar(value)} **{value}**{change}", inline=True)
+
+
+def reply_embed(result: ChatResult, show_state: bool) -> discord.Embed | None:
+    """回覆下方附加的資訊卡：角色狀態變化、引用來源與工具使用摘要。"""
+    if not show_state and not result.sources:
+        return None
+
+    embed = discord.Embed(color=EMBED_COLOR)
+    if show_state:
+        add_state_fields(embed, result.response.state, result.previous_state)
+
+    if result.sources:
+        lines = [
+            f"{index}. [{discord.utils.escape_markdown(urlsplit(url).netloc or url)}]({url})"
+            for index, url in enumerate(result.sources, start=1)
+        ]
+        embed.add_field(name="📚 參考來源", value="\n".join(lines)[:1024], inline=False)
+
+    footer = []
+    if result.tools_used:
+        counts = Counter(TOOL_LABELS.get(name, name) for name in result.tools_used)
+        footer.append("🔧 " + "、".join(f"{name}×{n}" if n > 1 else name for name, n in counts.items()))
+    if result.usage.total_tokens:
+        footer.append(f"🪙 {result.usage.total_tokens:,} tokens")
+    if footer:
+        embed.set_footer(text=" · ".join(footer))
+    return embed
+
+
+def usage_lines(summary: UsageSummary) -> str:
+    return (
+        f"訊息 **{summary.messages:,}** · API 請求 **{summary.requests:,}**\n"
+        f"輸入 {summary.input_tokens:,} · 輸出 {summary.output_tokens:,} · 合計 **{summary.total_tokens:,}**"
+    )

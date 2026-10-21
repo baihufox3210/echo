@@ -46,4 +46,8 @@ ENV PATH="/app/.venv/bin:$PATH" \
 USER echo
 VOLUME ["/app/data"]
 
+# Bot 連線正常時每 30 秒更新心跳檔，超過 2 分鐘未更新即視為異常
+HEALTHCHECK --interval=60s --timeout=10s --start-period=90s --retries=3 \
+    CMD ["python", "-m", "echo.healthcheck"]
+
 CMD ["python", "-m", "echo.main"]
