@@ -7,7 +7,7 @@ from echo.ai.models import CharacterState, ChatResult
 from echo.storage.usage import UsageSummary
 
 STATE_FIELDS = (
-    ("affection", "💗 好感度"),
+    ("affection", "♡ 好感度"),
     ("trust", "🤝 信任度"),
     ("mood", "🎵 心情"),
     ("stamina", "⚡ 體力"),
@@ -32,7 +32,6 @@ TOOL_LABELS = {
     "set_reminder": "設定提醒",
     "list_reminders": "查看提醒",
     "cancel_reminder": "取消提醒",
-    "read_channel_history": "閱讀頻道",
     "add_reaction": "表情反應",
 }
 EMBED_COLOR = discord.Color.from_rgb(255, 143, 177)
@@ -60,9 +59,10 @@ def add_state_fields(embed: discord.Embed, state: CharacterState, previous: Char
 
 
 def _affection_change(before: int, after: int) -> str:
+    # 使用一般文字符號 ♡（U+2661），不使用會被 Discord 轉成彩色圖示的 emoji
     diff = after - before
-    arrow = f"**+{diff}**" if diff > 0 else (f"**{diff}**" if diff < 0 else "無變動")
-    return f"{arrow}（目前 {after} / 100）"
+    change = f"♡ **+{diff}**" if diff > 0 else (f"♡ **{diff}**" if diff < 0 else "♡ 無變動")
+    return f"{change}（目前 {after} / 100）"
 
 
 def reply_embed(result: ChatResult, show_state: bool) -> discord.Embed | None:
@@ -85,7 +85,7 @@ def reply_embed(result: ChatResult, show_state: bool) -> discord.Embed | None:
         add_state_fields(embed, response.state, result.previous_state)
     elif affection_changed:
         embed.add_field(
-            name="💗 好感度變動",
+            name="♡ 好感度變動",
             value=_affection_change(result.previous_state.affection, response.state.affection),
             inline=False,
         )

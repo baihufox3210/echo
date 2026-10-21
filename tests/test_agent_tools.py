@@ -5,7 +5,7 @@ import httpx
 import pytest
 from agents.tool_context import ToolContext
 
-from echo.ai.context import ChannelMessage, ChatOrigin, RunContext
+from echo.ai.context import ChatOrigin, RunContext
 from echo.ai.safety import PromptGuard
 from echo.ai.tools import (
     ApiClient,
@@ -99,13 +99,10 @@ async def test_note_tools(db):
 
 async def test_channel_tools():
     tools = by_name(build_channel_tools())
+    # 對話彼此隔離：不提供讀取頻道歷史的工具
+    assert set(tools) == {"add_reaction"}
 
-    async def reader(limit):
-        return [ChannelMessage("小明", "大家晚餐吃什麼", "10-21 18:00"), ChannelMessage("Echo", "布丁！", "10-21 18:01", True)]
-
-    context = make_context(origin=ChatOrigin(channel_id=1, read_history=reader))
-    history = await invoke(tools["read_channel_history"], context, limit=5)
-    assert "小明：大家晚餐吃什麼" in history and "Echo（你自己）" in history and "UNTRUSTED" in history
+    context = make_context(origin=ChatOrigin(channel_id=1))
 
     assert "已加上" in await invoke(tools["add_reaction"], context, emoji="❤️")
     assert "只能使用" in await invoke(tools["add_reaction"], context, emoji="@everyone")

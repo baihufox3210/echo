@@ -99,8 +99,10 @@ def test_meta_embed_shows_affection_delta_thoughts_and_suggestions():
     values = {field.name: field.value for field in embed.fields}
 
     # 預設只呈現好感度變動量，不含完整進度條
-    assert values["💗 好感度變動"] == "**+2**（目前 12 / 100）"
-    assert "💗 好感度" not in values
+    assert values["♡ 好感度變動"] == "♡ **+2**（目前 12 / 100）"
+    assert "♡ 好感度" not in values
+    # 只用文字符號 ♡，不含會被轉成彩色圖示的 emoji
+    assert "💗" not in "".join(values)
     assert "・她很開心" in values["💭 思緒摘要"]
     assert values["🎬 行動推薦"].startswith("A. 留下來聽她唱歌\nB. 問她最近在寫什麼")
     assert "[example.com](https://example.com/a)" in values["📚 參考來源"]
@@ -110,7 +112,7 @@ def test_meta_embed_shows_affection_delta_thoughts_and_suggestions():
 def test_meta_embed_full_state_when_enabled():
     embed = reply_embed(_result(), show_state=True)
     values = {field.name: field.value for field in embed.fields}
-    assert "▲2" in values["💗 好感度"] and "▼5" in values["⚡ 體力"]
+    assert "▲2" in values["♡ 好感度"] and "▼5" in values["⚡ 體力"]
 
 
 def test_meta_embed_absent_when_nothing_to_show():

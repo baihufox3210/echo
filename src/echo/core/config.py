@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     ai_max_runs: int = Field(default=2, ge=1, le=5)
     tool_call_budget: int = Field(default=24, ge=1)
     enable_research: bool = True
-    # 以逗號分隔要停用的工具名稱，例如 "get_weather,read_channel_history"
+    # 以逗號分隔要停用的工具名稱，例如 "get_weather,add_reaction"
     disabled_tools: str = ""
     reminder_ping: bool = True
     research_max_turns: int = Field(default=12, ge=2)
