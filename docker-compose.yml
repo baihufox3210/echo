@@ -1,0 +1,45 @@
+services:
+  echo:
+    build: .
+    image: echo-bot:latest
+    container_name: echo
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      SEARXNG_URL: http://searxng:8080
+    volumes:
+      - echo-data:/app/data
+      # 掛載 Prompt 目錄，修改後無需重建映像即可生效
+      - ./prompt:/app/prompt:ro
+    extra_hosts:
+      # 讓容器可透過 host.docker.internal 連到主機上的服務（例如 Mem0）
+      - host.docker.internal:host-gateway
+    depends_on:
+      - searxng
+    stop_grace_period: 40s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  searxng:
+    image: searxng/searxng:latest
+    container_name: echo-searxng
+    restart: unless-stopped
+    environment:
+      SEARXNG_SECRET: ${SEARXNG_SECRET:?請在 .env 設定 SEARXNG_SECRET}
+      # 部分主機未啟用 IPv6，改為只監聽 IPv4
+      GRANIAN_HOST: 0.0.0.0
+    volumes:
+      - ./searxng/settings.yml:/etc/searxng/settings.yml:ro
+      - searxng-cache:/var/cache/searxng
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+volumes:
+  echo-data:
+  searxng-cache:
