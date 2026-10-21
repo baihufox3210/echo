@@ -116,6 +116,7 @@ class AIClient:
             timeout=settings.ai_timeout,
             max_retries=settings.ai_max_retries,
         )
+        self._warned_missing_usage = False
         self.web = WebSearch(settings)
         self.api = ApiClient(timeout=settings.search_timeout)
         model = OpenAIChatCompletionsModel(model=settings.model, openai_client=self.client)
@@ -143,7 +144,9 @@ class AIClient:
             tools.append(build_memory_tool(history, settings.mem0_top_k))
         if settings.enable_research and self.web.enabled:
             research_tools = enabled([*time_tools, *web_tools, *knowledge_tools])
-            tools.append(build_research_tool(model, research_tools, settings.research_max_turns))
+            tools.append(build_research_tool(
+                model, research_tools, settings.research_max_turns, settings.stream_include_usage
+            ))
         tools = enabled(tools)
 
         self.agent = Agent[RunContext](
@@ -154,6 +157,9 @@ class AIClient:
                 temperature=settings.model_temperature,
                 max_tokens=settings.max_output_tokens,
                 parallel_tool_calls=True,
+                # openai-agents 只對 OpenAI 官方端點預設開啟；其他相容端點需明確要求，
+                # 否則串流回應不含 token 用量，統計會一直是 0
+                include_usage=settings.stream_include_usage,
             ),
             tools=tools,
             output_type=AIResponse,
@@ -246,6 +252,13 @@ class AIClient:
             raise InvalidOutputError("AI response did not contain a valid result")
 
         usage = result.context_wrapper.usage
+        if usage.requests and not usage.input_tokens and not usage.output_tokens and not self._warned_missing_usage:
+            self._warned_missing_usage = True
+            logger.warning(
+                "API returned no token usage (stream=%s); usage statistics will show 0. "
+                "The endpoint may not support stream_options.include_usage.",
+                stream,
+            )
         return RunOutcome(
             response=parsed,
             usage=TokenUsage(usage.requests, usage.input_tokens, usage.output_tokens),

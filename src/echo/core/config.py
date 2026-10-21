@@ -34,6 +34,8 @@ class Settings(BaseSettings):
 
     # 回覆呈現
     stream_responses: bool = True
+    # 串流時要求 API 回傳 token 用量（stream_options.include_usage）；代理不支援時可關閉
+    stream_include_usage: bool = True
     stream_edit_interval: float = Field(default=1.2, ge=0.5)
     show_state_embed: bool = False
 

@@ -148,3 +148,43 @@ async def test_overload_without_fallback_raises_overloaded(settings):
     with pytest.raises(AIOverloadedError):
         await client.chat(MESSAGES, context())
     await client.close()
+
+
+async def test_streaming_requests_and_records_token_usage(settings):
+    """非 OpenAI 官方的相容端點，只有請求帶 stream_options.include_usage 才會回傳用量。"""
+    requests = []
+
+    def handler(request):
+        body = json.loads(request.content)
+        requests.append(body)
+        text = json.dumps(VALID, ensure_ascii=False)
+        chunk = {"id": "x", "object": "chat.completion.chunk", "created": 0, "model": "m"}
+        events = [
+            {**chunk, "choices": [{"index": 0, "delta": {"role": "assistant", "content": text}, "finish_reason": None}]},
+            {**chunk, "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]},
+        ]
+        if (body.get("stream_options") or {}).get("include_usage"):
+            events.append({**chunk, "choices": [], "usage": {"prompt_tokens": 120, "completion_tokens": 30, "total_tokens": 150}})
+        payload = "".join(f"data: {json.dumps(e, ensure_ascii=False)}\n\n" for e in events) + "data: [DONE]\n\n"
+        return httpx.Response(200, headers={"content-type": "text/event-stream"}, content=payload)
+
+    client = make_client(settings, handler)
+    outcome = await client.chat(MESSAGES, context(), stream=True)
+
+    assert requests[0]["stream_options"] == {"include_usage": True}
+    assert (outcome.usage.requests, outcome.usage.input_tokens, outcome.usage.output_tokens) == (1, 120, 30)
+    await client.close()
+
+
+async def test_stream_include_usage_can_be_disabled(settings):
+    settings.stream_include_usage = False
+    requests = []
+
+    def handler(request):
+        requests.append(json.loads(request.content))
+        return httpx.Response(200, headers={"content-type": "text/event-stream"}, content=sse(json.dumps(VALID, ensure_ascii=False)))
+
+    client = make_client(settings, handler)
+    await client.chat(MESSAGES, context(), stream=True)
+    assert "stream_options" not in requests[0] or not requests[0]["stream_options"].get("include_usage")
+    await client.close()
