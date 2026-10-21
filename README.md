@@ -50,13 +50,13 @@ Echo 是一個以 Discord 為介面的 AI 角色對話 Bot。使用者提及 Bot
 
 1. 在 Discord Developer Portal 建立 Bot，取得 Bot Token，並在 Bot 設定中啟用 **Message Content Intent**。邀請 Bot 時選取 `bot` 與 `applications.commands` scopes，並授予讀取訊息、傳送訊息、讀取訊息歷史與新增反應的權限。
 
-2. 建立設定檔並填入必要值：
+2. 建立設定檔：
 
    ```bash
-   cp .env.example .env
-   # 產生 SearXNG 金鑰
-   echo "SEARXNG_SECRET=$(openssl rand -hex 32)" >> .env
+   ./setup.sh
    ```
+
+   腳本會從 `.env.example` 建立 `.env`，並自動產生 SearXNG 金鑰（不需要 openssl）。接著編輯 `.env` 填入 `DISCORD_TOKEN`、`BASE_URL`、`API_KEY`、`MODEL`，再執行一次 `./setup.sh` 確認設定完整。
 
 3. 啟動：
 

@@ -28,7 +28,7 @@ services:
     container_name: echo-searxng
     restart: unless-stopped
     environment:
-      SEARXNG_SECRET: ${SEARXNG_SECRET:?請在 .env 設定 SEARXNG_SECRET}
+      SEARXNG_SECRET: ${SEARXNG_SECRET:?請執行 ./setup.sh 產生 SEARXNG_SECRET}
       # 部分主機未啟用 IPv6，改為只監聽 IPv4
       GRANIAN_HOST: 0.0.0.0
     volumes:
