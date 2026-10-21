@@ -54,7 +54,7 @@ def build_reminder_tools(store: ReminderStore, timezone: str) -> list[FunctionTo
         if await store.count_user(context.user_id) >= MAX_PENDING:
             return f"設定失敗：每人最多 {MAX_PENDING} 個待處理提醒，請先取消部分提醒。"
 
-        await context.emit(AgentEvent("tool", "⏰ 設定提醒"))
+        await context.emit(AgentEvent("tool", "▹ 設定提醒"))
         reminder_id = await store.add(
             context.user_id, context.origin.channel_id, due, message.strip()[:MAX_CONTENT]
         )

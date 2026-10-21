@@ -1,12 +1,11 @@
 import logging
 import re
-from zoneinfo import ZoneInfo
 
 import discord
 from discord.ext import commands
 
 from echo.ai.attachments import IncomingFile
-from echo.ai.context import ChannelMessage, ChatOrigin
+from echo.ai.context import ChatOrigin
 from echo.core.bot import Bot
 from echo.core.concurrency import RateLimiter
 from echo.core.embeds import reply_embed
@@ -17,7 +16,6 @@ logger = logging.getLogger(__name__)
 
 EMPTY_MESSAGE_PLACEHOLDER = "（呼喚了你，但沒有說話）"
 ATTACHMENT_ONLY_PLACEHOLDER = "（傳送了附件）"
-HISTORY_MESSAGE_CHARS = 500
 QUOTED_MESSAGE_CHARS = 1500
 
 
@@ -29,7 +27,6 @@ class Chat(commands.Cog):
             limit=self.settings.rate_limit_per_user,
             window=self.settings.rate_limit_window,
         )
-        self.tz = ZoneInfo(self.settings.timezone)
 
     def _should_respond(self, message: discord.Message) -> bool:
         me = self.bot.user
@@ -71,27 +68,9 @@ class Chat(commands.Cog):
             for attachment in message.attachments
         ]
 
-    def _origin(self, message: discord.Message) -> ChatOrigin:
-        me = self.bot.user
-
-        async def read_history(limit: int) -> list[ChannelMessage]:
-            history = [m async for m in message.channel.history(limit=limit, before=message)]
-            history.reverse()
-            return [
-                ChannelMessage(
-                    author=m.author.display_name,
-                    content=self._describe(m, HISTORY_MESSAGE_CHARS),
-                    created_at=m.created_at.astimezone(self.tz).strftime("%m-%d %H:%M"),
-                    is_bot=m.author.id == me.id,
-                )
-                for m in history
-            ]
-
-        return ChatOrigin(
-            channel_id=message.channel.id,
-            is_dm=message.guild is None,
-            read_history=read_history,
-        )
+    @staticmethod
+    def _origin(message: discord.Message) -> ChatOrigin:
+        return ChatOrigin(channel_id=message.channel.id, is_dm=message.guild is None)
 
     @staticmethod
     def _describe(message: discord.Message, limit: int) -> str:
@@ -103,12 +82,29 @@ class Chat(commands.Cog):
         return content or "（無文字內容）"
 
     def _quoted(self, message: discord.Message) -> str | None:
-        """使用者回覆其他訊息時，提供被回覆的內容作為前後文。"""
+        """使用者回覆某則訊息時，提供被回覆的內容作為前後文，並標明訊息屬於誰。"""
         if message.reference is None or not isinstance(message.reference.resolved, discord.Message):
             return None
         replied = message.reference.resolved
-        author = "你自己" if replied.author.id == self.bot.user.id else replied.author.display_name
-        return f"{author}：{self._describe(replied, QUOTED_MESSAGE_CHARS)}"
+        content = self._describe(replied, QUOTED_MESSAGE_CHARS)
+
+        if replied.author.id != self.bot.user.id:
+            return f"其他使用者「{replied.author.display_name}」的訊息：{content}"
+
+        target = self._reply_target(replied)
+        if target is None or target == message.author.id:
+            return f"你先前傳給這位使用者的訊息：{content}"
+        return f"你先前回覆「其他使用者」的訊息（不是與這位使用者的對話）：{content}"
+
+    def _reply_target(self, bot_message: discord.Message) -> int | None:
+        """找出 Bot 的某則訊息原本是回覆給哪位使用者；查不到時回傳 None。"""
+        reference = bot_message.reference
+        if reference is None or reference.message_id is None:
+            return None
+        original = reference.resolved if isinstance(reference.resolved, discord.Message) else discord.utils.get(
+            self.bot.cached_messages, id=reference.message_id
+        )
+        return original.author.id if original is not None else None
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message) -> None:

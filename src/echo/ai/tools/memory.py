@@ -17,7 +17,7 @@ def build_memory_tool(history: LongTermMemory, top_k: int) -> FunctionTool:
         if not context.consume_budget():
             return BUDGET_EXHAUSTED
 
-        await context.emit(AgentEvent("tool", "💭 回想過去的記憶"))
+        await context.emit(AgentEvent("tool", "▹ 回想過去的記憶"))
         try:
             memories = await history.search(query=query, user_id=context.user_id, top_k=top_k)
         except EchoError:

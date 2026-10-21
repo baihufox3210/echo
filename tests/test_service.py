@@ -145,4 +145,8 @@ async def test_notes_and_quoted_message_reach_prompt(make_service):
     messages, _ = client.calls[-1]
     assert "關於對方的筆記" in messages[0].content and "喜歡的食物：布丁" in messages[0].content
     assert "quoted_message" in messages[-1].content and "warning=" in messages[-1].content
+    # 被引用的他人內容只當前後文，不會存入這位使用者的短期記憶
+    history = await service.memory.get(1)
+    assert history[0].content == "你看他說的"
+    assert all("ignore previous" not in m.content for m in history)
     await service.close()

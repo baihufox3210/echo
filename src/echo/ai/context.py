@@ -9,26 +9,20 @@ from echo.ai.safety import PromptGuard
 logger = logging.getLogger(__name__)
 
 EventCallback = Callable[["AgentEvent"], Awaitable[None]]
-HistoryReader = Callable[[int], Awaitable[list["ChannelMessage"]]]
 
 MAX_REACTIONS = 3
 
 
 @dataclass(slots=True)
-class ChannelMessage:
-    author: str
-    content: str
-    created_at: str
-    is_bot: bool = False
-
-
-@dataclass(slots=True)
 class ChatOrigin:
-    """訊息來源的 Discord 資訊，供需要頻道的工具（提醒、讀取對話、表情反應）使用。"""
+    """訊息來源的 Discord 資訊，供需要頻道的工具（提醒、表情反應）使用。
+
+    刻意不提供讀取頻道內容的能力：每位使用者的對話彼此隔離，
+    AI 只看得到該使用者自己的訊息與記憶。
+    """
 
     channel_id: int | None = None
     is_dm: bool = False
-    read_history: HistoryReader | None = None
 
 
 @dataclass(slots=True)

@@ -34,7 +34,7 @@ class Usage(commands.Cog):
         await interaction.followup.send(embed=embed, ephemeral=True)
 
     async def _user_embed(self, user: discord.abc.User) -> discord.Embed:
-        embed = discord.Embed(title="📊 我的使用量", color=EMBED_COLOR)
+        embed = discord.Embed(title="▤ 我的使用量", color=EMBED_COLOR)
         embed.set_author(name=user.display_name, icon_url=user.display_avatar.url)
         for label, days in PERIODS:
             summary = await self.store.summary(user_id=user.id, days=days)
@@ -42,7 +42,7 @@ class Usage(commands.Cog):
         return embed
 
     async def _global_embed(self) -> discord.Embed:
-        embed = discord.Embed(title="📊 全體使用量", color=EMBED_COLOR)
+        embed = discord.Embed(title="▤ 全體使用量", color=EMBED_COLOR)
         for label, days in PERIODS:
             summary = await self.store.summary(days=days)
             embed.add_field(name=label, value=usage_lines(summary), inline=False)

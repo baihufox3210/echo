@@ -35,16 +35,16 @@ class Memory(commands.GroupCog, group_name="memory", group_description="管理 E
         embed = discord.Embed(title="角色狀態", color=EMBED_COLOR)
         embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.display_avatar.url)
         add_state_fields(embed, state)
-        embed.add_field(name="🧠 短期記憶", value=f"{len(history)} 則訊息", inline=True)
+        embed.add_field(name="☰ 短期記憶", value=f"{len(history)} 則訊息", inline=True)
         embed.add_field(
-            name="🕒 上次互動",
+            name="◷ 上次互動",
             value=discord.utils.format_dt(last_seen, "R") if last_seen else "尚未互動",
             inline=True,
         )
-        embed.add_field(name="⏰ 待處理提醒", value=f"{reminders} 個", inline=True)
+        embed.add_field(name="◔ 待處理提醒", value=f"{reminders} 個", inline=True)
         if notes:
             lines = "\n".join(f"• **{key}**：{value}" for key, value in notes.items())
-            embed.add_field(name=f"📝 記住的事（{len(notes)}）", value=lines[:1024], inline=False)
+            embed.add_field(name=f"✎ 記住的事（{len(notes)}）", value=lines[:1024], inline=False)
 
         await interaction.followup.send(embed=embed, ephemeral=True)
 

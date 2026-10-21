@@ -62,7 +62,6 @@ TOOL_INSTRUCTIONS = """\
 - 對方要求「提醒我…」時，用 set_reminder 設定（time 使用預設時區，或用 minutes_from_now）；查詢或取消用 list_reminders、cancel_reminder。不可主動替對方設定提醒。
 
 ## 對話情境
-- 在群組中，對方提到「上面」、「剛剛大家說的」或你需要更多前後文時，用 read_channel_history。
 - 想表達情緒時，可以用 add_reaction 對對方的訊息加上 1～2 個表情反應（不要每次都用）。
 - 使用者上傳的檔案若內容被截斷，用 read_attachment 讀取後續內容。
 

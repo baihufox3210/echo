@@ -68,7 +68,7 @@ def build_knowledge_tools(api: ApiClient) -> list[FunctionTool]:
         if not context.consume_budget():
             return BUDGET_EXHAUSTED
 
-        await context.emit(AgentEvent("tool", f"📖 查閱維基百科「{query[:40]}」"))
+        await context.emit(AgentEvent("tool", f"▹ 查閱維基百科「{query[:40]}」"))
         try:
             result = await wikipedia_lookup(api, query, lang.strip().lower() or "zh")
         except (ApiError, KeyError, TypeError):
@@ -96,7 +96,7 @@ def build_knowledge_tools(api: ApiClient) -> list[FunctionTool]:
         if not context.consume_budget():
             return BUDGET_EXHAUSTED
 
-        await context.emit(AgentEvent("tool", f"💱 換算 {from_currency.upper()} → {to_currency.upper()}"))
+        await context.emit(AgentEvent("tool", f"▹ 換算 {from_currency.upper()} → {to_currency.upper()}"))
         try:
             result = await convert(api, amount, from_currency, to_currency)
         except ApiError:
