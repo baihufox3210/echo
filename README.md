@@ -148,6 +148,7 @@ uv run pytest
 | `DISABLED_TOOLS`（空） | 以逗號分隔要停用的工具名稱，例如 `get_weather,add_reaction` |
 | `REMINDER_PING` (`true`) | 提醒送達時是否 ping 設定提醒的本人（不會 ping 其他人） |
 | `STREAM_RESPONSES` (`true`) | 是否串流顯示回覆文字（模型需支援串流） |
+| `STREAM_INCLUDE_USAGE` (`true`) | 串流時要求 API 回傳 token 用量；若代理因此回報錯誤可設為 `false`（用量統計將無法記錄 token） |
 | `STREAM_EDIT_INTERVAL` (`1.2`) | 串流時編輯 Discord 訊息的最短間隔秒數 |
 | `SHOW_STATE_EMBED` (`false`) | 是否在每次回覆下方附上角色狀態資訊卡；關閉時可用 `/memory status` 查看 |
 | `ENABLE_VISION` (`true`) | 是否將圖片附件交給模型辨識 |
@@ -220,6 +221,7 @@ uv run pytest
 | 回覆結尾被截斷、內容不完整 | 模型輸出超過上限；提高 `MAX_OUTPUT_TOKENS`，或請它精簡長內容 |
 | `AI run x/y failed ... 503` | 模型服務過載；可設定 `FALLBACK_MODEL` 自動改用備援模型 |
 | `Request with images rejected` | API 不接受圖片，冒號後為原因 |
+| `API returned no token usage` | API 沒有回傳 token 用量，`/usage` 的 token 會是 0；代理可能不支援 `stream_options` |
 
 ## 授權
 

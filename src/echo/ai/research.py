@@ -54,12 +54,17 @@ async def finalize_without_tools(
     return RunErrorHandlerResult(final_output=result.final_output)
 
 
-def build_research_tool(model, tools: list[FunctionTool], max_turns: int) -> FunctionTool:
+def build_research_tool(
+    model,
+    tools: list[FunctionTool],
+    max_turns: int,
+    include_usage: bool = True,
+) -> FunctionTool:
     researcher = Agent[RunContext](
         name="Researcher",
         instructions=RESEARCH_INSTRUCTIONS,
         model=model,
-        model_settings=ModelSettings(parallel_tool_calls=True),
+        model_settings=ModelSettings(parallel_tool_calls=True, include_usage=include_usage),
         tools=tools,
     )
 
