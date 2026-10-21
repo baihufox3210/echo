@@ -14,7 +14,7 @@ CURSOR = " ▌"
 
 async def send_reply(
     source: discord.Message,
-    content: str,
+    content: str | None = None,
     *,
     embed: discord.Embed | None = None,
     reference: bool = True,
@@ -100,17 +100,18 @@ class ReplyStreamer:
             await asyncio.gather(self._inflight, return_exceptions=True)
 
     async def finish(self, text: str, embed: discord.Embed | None = None) -> None:
-        """送出最終內容；過長時分段，資訊卡附在最後一段。"""
+        """送出最終回覆：角色對話為第一則（過長時分段），資訊卡另成獨立的第二則訊息。"""
         await self._stop()
         chunks = split_message(text) or ["……"]
 
         try:
             for index, chunk in enumerate(chunks):
-                last = index == len(chunks) - 1
-                chunk_embed = embed if last else None
                 if index == 0 and self.message is not None:
-                    await self.message.edit(content=chunk, embed=chunk_embed)
+                    await self.message.edit(content=chunk, embed=None)
                 else:
-                    await send_reply(self.source, chunk, embed=chunk_embed, reference=index == 0)
+                    await send_reply(self.source, chunk, reference=index == 0)
+
+            if embed is not None:
+                await send_reply(self.source, None, embed=embed, reference=False)
         except discord.HTTPException:
             logger.exception("Failed to send reply in channel %s", self.source.channel.id)

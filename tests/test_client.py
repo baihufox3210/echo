@@ -15,7 +15,7 @@ from echo.core.errors import AIOverloadedError
 from echo.memory.long_term import LongTermMemory
 
 STATE = CharacterState(affection=7, mood=50, stamina=80, trust=3)
-VALID = {"dialogue": "你好～", "action": "揮手", "state": {"affection": 8, "mood": 55, "stamina": 80, "trust": 3}, "sources": []}
+VALID = {"dialogue": "你好～", "thoughts": [], "suggestions": [], "state": {"affection": 8, "mood": 55, "stamina": 80, "trust": 3}, "sources": []}
 
 
 def test_salvage_fenced_json():
@@ -36,6 +36,17 @@ def test_salvage_plain_text_keeps_state():
 def test_salvage_rejects_json_without_dialogue_and_empty():
     assert salvage_response('{"answer": "x"}', STATE) is None
     assert salvage_response("   ", STATE) is None
+
+
+def test_salvage_truncated_json_recovers_partial_dialogue():
+    # 模型因輸出上限而把 JSON 截斷在 dialogue 中途（本次實際遇到的情況）
+    truncated = '{\n  "dialogue": "(看著檔案)\\n\\n『愛彌斯幫你整理好了：\\n1. 被動情蒐\\n2. 主動情蒐 (`-A`'
+    result = salvage_response(truncated, STATE)
+    assert result is not None
+    assert result.dialogue.startswith("(看著檔案)")
+    assert "被動情蒐" in result.dialogue
+    assert "dialogue" not in result.dialogue and "{" not in result.dialogue
+    assert result.state == STATE
 
 
 def test_dialogue_stream_handles_json_and_plain_text():

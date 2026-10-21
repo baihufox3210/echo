@@ -6,7 +6,7 @@ Echo 是一個以 Discord 為介面的 AI 角色對話 Bot。使用者提及 Bot
 
 - **Discord 對話**：提及 Bot、回覆 Bot 的訊息或私訊皆可觸發；Bot 以「回覆」形式回應，但不會 ping 任何人（包括 @everyone 與身分組）。
 - **即時串流回覆**：代理執行時即時顯示進度（🔍 搜尋中、📄 閱讀網頁、🔬 深入研究…），回覆文字邊生成邊更新到同一則訊息；更新會合併送出，避免觸發 Discord 頻率限制。
-- **Embed 資訊卡**：引用網路資料時，回覆下方會以 Embed 列出參考來源、使用的工具與 token 用量；角色狀態預設不隨回覆顯示，可用 `/memory status` 查看（設定 `SHOW_STATE_EMBED=true` 則每次回覆都附上狀態進度條與本輪變化）。
+- **回覆分兩則**：第一則是角色對話（動作神態＋表面台詞＋內心獨白）；若有好感度變動、思緒摘要、行動推薦或參考來源，會另以 Embed 資訊卡作為第二則訊息。好感度僅顯示本輪變動量，完整狀態數值用 `/memory status` 查看（設定 `SHOW_STATE_EMBED=true` 可在資訊卡附上完整進度條）。
 - **多人同時處理**：不同使用者並行處理，同一使用者依序處理，避免對話紀錄與角色狀態互相覆蓋；可設定 AI 最大並行數。
 - **附件讀取**：
   - 圖片：交給支援視覺的模型辨識（模型不支援時自動改為不帶圖片重試）。
@@ -136,6 +136,7 @@ uv run pytest
 | `MEM0_TOP_K` (`10`) | 每次檢索的長期記憶數量 |
 | `MEM0_TIMEOUT` (`60`) | 記憶服務逾時秒數 |
 | `FALLBACK_MODEL`（空） | 主要模型過載（429／5xx）時改用的備援模型，例如較不擁擠的模型 |
+| `MAX_OUTPUT_TOKENS` (`4096`) | 單次回覆的最大輸出 token 數；過小會使長回覆被截斷，可視模型上限調整 |
 | `MODEL_TEMPERATURE`（空） | 模型 temperature，留空使用模型預設 |
 | `AI_TIMEOUT` (`90`) | AI API 逾時秒數 |
 | `AI_MAX_RETRIES` (`2`) | AI API 失敗重試次數 |
@@ -216,6 +217,7 @@ uv run pytest
 | --- | --- |
 | `Stream finished: deltas=N ...` | 串流統計；`deltas` 很少（1～3）代表上游 API 一次回傳整段，串流看起來不會逐段更新 |
 | `Model output did not match schema; salvaged it` | 模型沒有照 JSON 格式回覆，已自動取回文字（角色狀態本輪不變） |
+| 回覆結尾被截斷、內容不完整 | 模型輸出超過上限；提高 `MAX_OUTPUT_TOKENS`，或請它精簡長內容 |
 | `AI run x/y failed ... 503` | 模型服務過載；可設定 `FALLBACK_MODEL` 自動改用備援模型 |
 | `Request with images rejected` | API 不接受圖片，冒號後為原因 |
 

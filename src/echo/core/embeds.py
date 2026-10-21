@@ -59,14 +59,47 @@ def add_state_fields(embed: discord.Embed, state: CharacterState, previous: Char
         embed.add_field(name=label, value=f"{progress_bar(value)} **{value}**{change}", inline=True)
 
 
+def _affection_change(before: int, after: int) -> str:
+    diff = after - before
+    arrow = f"**+{diff}**" if diff > 0 else (f"**{diff}**" if diff < 0 else "無變動")
+    return f"{arrow}（目前 {after} / 100）"
+
+
 def reply_embed(result: ChatResult, show_state: bool) -> discord.Embed | None:
-    """回覆下方附加的資訊卡：角色狀態變化、引用來源與工具使用摘要。"""
-    if not show_state and not result.sources:
+    """第二則訊息的資訊卡：好感度變動、思緒摘要、行動推薦與引用來源。
+
+    show_state 為 True 時額外附上完整狀態進度條；預設只呈現好感度變動量，
+    完整狀態數值改由 /memory status 查看。
+    """
+    response = result.response
+    affection_changed = result.previous_state.affection != response.state.affection
+
+    # 沒有任何值得單獨成一則訊息的內容時，不送出第二則
+    has_content = affection_changed or response.thoughts or response.suggestions or result.sources
+    if not show_state and not has_content:
         return None
 
     embed = discord.Embed(color=EMBED_COLOR)
+
     if show_state:
-        add_state_fields(embed, result.response.state, result.previous_state)
+        add_state_fields(embed, response.state, result.previous_state)
+    elif affection_changed:
+        embed.add_field(
+            name="💗 好感度變動",
+            value=_affection_change(result.previous_state.affection, response.state.affection),
+            inline=False,
+        )
+
+    if response.thoughts:
+        embed.add_field(
+            name="💭 思緒摘要",
+            value="\n".join(f"・{thought}" for thought in response.thoughts)[:1024],
+            inline=False,
+        )
+
+    if response.suggestions:
+        options = (f"{chr(65 + i)}. {text}" for i, text in enumerate(response.suggestions))
+        embed.add_field(name="🎬 行動推薦", value="\n".join(options)[:1024], inline=False)
 
     if result.sources:
         lines = [
@@ -83,7 +116,8 @@ def reply_embed(result: ChatResult, show_state: bool) -> discord.Embed | None:
         footer.append(f"🪙 {result.usage.total_tokens:,} tokens")
     if footer:
         embed.set_footer(text=" · ".join(footer))
-    return embed
+
+    return embed if embed.fields or embed.footer.text else None
 
 
 def usage_lines(summary: UsageSummary) -> str:

@@ -153,6 +153,7 @@ class AIClient:
             model=model,
             model_settings=ModelSettings(
                 temperature=settings.model_temperature,
+                max_tokens=settings.max_output_tokens,
                 parallel_tool_calls=True,
             ),
             tools=tools,
