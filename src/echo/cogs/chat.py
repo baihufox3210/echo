@@ -1,5 +1,6 @@
 import logging
 import re
+from collections import OrderedDict
 
 import discord
 from discord.ext import commands
@@ -17,6 +18,8 @@ logger = logging.getLogger(__name__)
 EMPTY_MESSAGE_PLACEHOLDER = "（呼喚了你，但沒有說話）"
 ATTACHMENT_ONLY_PLACEHOLDER = "（傳送了附件）"
 QUOTED_MESSAGE_CHARS = 1500
+# 記住最近處理過的訊息 ID，避免 Discord 重送事件時同一則訊息被處理兩次
+SEEN_MESSAGE_LIMIT = 1000
 
 
 class Chat(commands.Cog):
@@ -27,6 +30,7 @@ class Chat(commands.Cog):
             limit=self.settings.rate_limit_per_user,
             window=self.settings.rate_limit_window,
         )
+        self._seen_messages: OrderedDict[int, None] = OrderedDict()
 
     def _should_respond(self, message: discord.Message) -> bool:
         me = self.bot.user
@@ -106,10 +110,23 @@ class Chat(commands.Cog):
         )
         return original.author.id if original is not None else None
 
+    def _first_time(self, message_id: int) -> bool:
+        if message_id in self._seen_messages:
+            return False
+        self._seen_messages[message_id] = None
+        if len(self._seen_messages) > SEEN_MESSAGE_LIMIT:
+            self._seen_messages.popitem(last=False)
+        return True
+
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message) -> None:
         if not self._should_respond(message):
             return
+        if not self._first_time(message.id):
+            logger.warning("Ignoring duplicate delivery of message %s", message.id)
+            return
+
+        logger.info("Handling message %s from user %s in channel %s", message.id, message.author.id, message.channel.id)
 
         files = self._incoming_files(message)
         content = self._clean_content(message) or (
@@ -139,7 +156,7 @@ class Chat(commands.Cog):
                 )
         except AIOverloadedError:
             logger.warning("AI service overloaded; request from user %d dropped", message.author.id)
-            await streamer.finish("AI 服務現在太忙了，請過一下再試一次。")
+            await streamer.finish("AI 服務目前請求過多或額度已用完，請稍等一下再試。")
             return
         except EchoError:
             logger.exception("Chat service failed")
