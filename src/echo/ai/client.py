@@ -21,6 +21,7 @@ from echo.ai.models import AIResponse, CharacterState, ChatMessage, TokenUsage
 from echo.ai.research import build_research_tool, finalize_without_tools
 from echo.ai.output import response_text, salvage_response
 from echo.ai.streaming import DialogueStream
+from echo.ai.throttle import ApiThrottle, current_run
 from echo.ai.tools import (
     ApiClient,
     WebSearch,
@@ -83,15 +84,10 @@ class InvalidOutputError(Exception):
 
 
 OVERLOAD_ERRORS = (openai.RateLimitError, openai.InternalServerError)
-
-RETRYABLE_ERRORS = (
-    InvalidOutputError,
-    AgentsException,
-    openai.APIConnectionError,
-    openai.APITimeoutError,
-    openai.RateLimitError,
-    openai.InternalServerError,
-)
+# OpenAI SDK 已針對這些錯誤自動重試（含退避），外層不再重跑整個代理，避免請求數倍增
+TRANSPORT_ERRORS = (openai.APIConnectionError, openai.APITimeoutError)
+# 只有模型輸出本身有問題時，才值得重新執行整個代理
+RETRYABLE_ERRORS = (InvalidOutputError, AgentsException)
 
 
 @dataclass(slots=True)
@@ -110,11 +106,16 @@ class AIClient:
         reminders: ReminderStore,
     ):
         self.settings = settings
+        self.throttle = ApiThrottle(
+            requests_per_minute=settings.ai_requests_per_minute,
+            cooldown=settings.ai_rate_limit_cooldown,
+        )
         self.client = AsyncOpenAI(
             api_key=settings.api_key,
             base_url=settings.base_url,
             timeout=settings.ai_timeout,
             max_retries=settings.ai_max_retries,
+            http_client=self.throttle.http_client(),
         )
         self._warned_missing_usage = False
         self.web = WebSearch(settings)
@@ -174,9 +175,11 @@ class AIClient:
         )
 
     async def chat(self, messages: list[ChatMessage], context: RunContext, stream: bool = False) -> RunOutcome:
-        """執行代理；可重試的錯誤會重新執行，最多 ai_max_runs 次。
+        """執行代理。
 
-        主要模型過載時若設定了備援模型，會改用備援模型再試（額外多一次機會）。
+        - 429／5xx／連線錯誤：OpenAI SDK 已自動重試並遵守節流冷卻，這裡不再重跑；
+          若設定了備援模型，過載時改用備援模型再試一次。
+        - 模型輸出格式錯誤等問題：重新執行整個代理，最多 ai_max_runs 次。
         """
         has_images = any(m.images for m in messages)
         agent = self.agent
@@ -197,19 +200,30 @@ class AIClient:
                     continue
                 logger.error("AI request rejected: %s", error)
                 raise AIServiceError("AI service rejected the request") from error
+            except OVERLOAD_ERRORS as error:
+                logger.warning(
+                    "AI request overloaded after SDK retries (model=%s): %s: %s",
+                    agent.model.model, error.__class__.__name__, error,
+                )
+                if self.fallback_agent is not None and agent is not self.fallback_agent:
+                    logger.warning("Switching to fallback model %s", self.settings.fallback_model)
+                    agent = self.fallback_agent
+                    max_runs = max(max_runs, attempt + 1)
+                    await context.emit(AgentEvent("retry"))
+                    continue
+                raise AIOverloadedError("AI service is overloaded") from error
+            except TRANSPORT_ERRORS as error:
+                logger.error(
+                    "AI request failed after SDK retries (model=%s): %s: %s",
+                    agent.model.model, error.__class__.__name__, error,
+                )
+                raise AIServiceError("AI service request failed") from error
             except RETRYABLE_ERRORS as error:
                 logger.warning(
                     "AI run %d/%d failed (model=%s): %s: %s",
                     attempt, max_runs, agent.model.model, error.__class__.__name__, error,
                 )
-                overloaded = isinstance(error, OVERLOAD_ERRORS)
-                if overloaded and self.fallback_agent is not None and agent is not self.fallback_agent:
-                    logger.warning("Switching to fallback model %s", self.settings.fallback_model)
-                    agent = self.fallback_agent
-                    max_runs = max(max_runs, attempt + 1)
-                elif attempt >= max_runs:
-                    if overloaded:
-                        raise AIOverloadedError("AI service is overloaded") from error
+                if attempt >= max_runs:
                     raise AIServiceError("AI service request failed") from error
                 await context.emit(AgentEvent("retry"))
             except Exception as error:
@@ -227,6 +241,8 @@ class AIClient:
     ) -> RunOutcome:
         logger.debug("AI request: model=%s messages=%d stream=%s", agent.model.model, len(messages), stream)
         inputs = [m.to_input() for m in messages]
+        # 讓節流器在排隊時能通知這位使用者
+        current_run.set(context)
 
         async def on_max_turns(data: RunErrorHandlerInput[RunContext]) -> RunErrorHandlerResult:
             logger.info("Max turns reached; finalizing without tools")

@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     max_output_tokens: int | None = Field(default=4096, ge=256)
     ai_timeout: float = Field(default=90.0, gt=0)
     ai_max_retries: int = Field(default=2, ge=0)
+    # 所有 AI 請求合計的每分鐘上限（含工具回合與研究子代理），0 表示不限制
+    ai_requests_per_minute: int = Field(default=0, ge=0)
+    # 收到 429 且 API 未提供 Retry-After 時，所有 AI 請求暫停的秒數
+    ai_rate_limit_cooldown: float = Field(default=10.0, ge=0, le=60)
     ai_max_turns: int = Field(default=10, ge=1)
     ai_max_runs: int = Field(default=2, ge=1, le=5)
     tool_call_budget: int = Field(default=24, ge=1)

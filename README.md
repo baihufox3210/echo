@@ -141,7 +141,9 @@ uv run pytest
 | `AI_TIMEOUT` (`90`) | AI API 逾時秒數 |
 | `AI_MAX_RETRIES` (`2`) | AI API 失敗重試次數 |
 | `AI_MAX_TURNS` (`10`) | 單次對話中 AI 最多可使用工具的回合數，用盡時會整理已有資訊作答 |
-| `AI_MAX_RUNS` (`2`) | 發生可重試錯誤時，整個代理最多執行幾次 |
+| `AI_MAX_RUNS` (`2`) | 模型輸出格式錯誤等問題時，整個代理最多執行幾次（429／5xx／連線錯誤只由 SDK 重試，不會再重跑） |
+| `AI_REQUESTS_PER_MINUTE` (`0`) | 所有 AI 請求合計的每分鐘上限（含工具回合與研究子代理），超過時排隊等待；`0` 為不限制。建議設為供應商 RPM 額度略低的值 |
+| `AI_RATE_LIMIT_COOLDOWN` (`10`) | 收到 429 且 API 未提供 `Retry-After` 時，所有 AI 請求暫停的秒數 |
 | `TOOL_CALL_BUDGET` (`24`) | 單次對話（含研究子代理）最多可呼叫的工具次數 |
 | `ENABLE_RESEARCH` (`true`) | 是否啟用 `deep_research` 研究子代理 |
 | `RESEARCH_MAX_TURNS` (`12`) | 研究子代理最多可使用的回合數 |
@@ -219,7 +221,8 @@ uv run pytest
 | `Stream finished: deltas=N ...` | 串流統計；`deltas` 很少（1～3）代表上游 API 一次回傳整段，串流看起來不會逐段更新 |
 | `Model output did not match schema; salvaged it` | 模型沒有照 JSON 格式回覆，已自動取回文字（角色狀態本輪不變） |
 | 回覆結尾被截斷、內容不完整 | 模型輸出超過上限；提高 `MAX_OUTPUT_TOKENS`，或請它精簡長內容 |
-| `AI run x/y failed ... 503` | 模型服務過載；可設定 `FALLBACK_MODEL` 自動改用備援模型 |
+| `AI API rate limited (429); pausing all AI requests` | 額度或頻率超限，所有 AI 請求暫停後自動重試；經常出現時請設定 `AI_REQUESTS_PER_MINUTE` 或 `FALLBACK_MODEL` |
+| `Handling message ...` 在兩個地方都出現，或同一則訊息收到兩次回覆 | 同時執行了兩個 Bot（例如本機與 Docker），請只保留一個 |
 | `Request with images rejected` | API 不接受圖片，冒號後為原因 |
 | `API returned no token usage` | API 沒有回傳 token 用量，`/usage` 的 token 會是 0；代理可能不支援 `stream_options` |
 
