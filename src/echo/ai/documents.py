@@ -5,7 +5,9 @@ import io
 import logging
 import re
 import zipfile
+from dataclasses import dataclass, field
 from pathlib import PurePosixPath
+from urllib.parse import urldefrag, urljoin
 
 from bs4 import BeautifulSoup
 
@@ -76,7 +78,56 @@ def decode_text(data: bytes, encoding: str | None = None) -> str:
     return data.decode("utf-8", errors="replace")
 
 
-def extract_html(data: bytes, encoding: str | None = None) -> tuple[str, str]:
+@dataclass(slots=True)
+class Link:
+    url: str
+    text: str
+
+
+@dataclass(slots=True)
+class HtmlPage:
+    title: str
+    text: str
+    links: list[Link] = field(default_factory=list)
+
+
+REMOVED_TAGS = ("script", "style", "noscript", "svg", "nav", "footer", "header",
+                "form", "aside", "iframe", "button", "template")
+HIDDEN_SELECTOR = (
+    '[hidden], [aria-hidden="true"], [style*="display:none"], [style*="display: none"], '
+    '[style*="visibility:hidden"]'
+)
+MAX_LINKS = 400
+
+
+def _collect_links(soup: BeautifulSoup, base_url: str) -> list[Link]:
+    """收集頁面上所有連結（含導覽選單），轉為絕對網址並去重。"""
+    links: dict[str, Link] = {}
+    for anchor in soup.find_all("a", href=True):
+        href = str(anchor["href"]).strip()
+        if not href or href.startswith(("#", "javascript:", "mailto:", "tel:")):
+            continue
+        url = urldefrag(urljoin(base_url, href)).url
+        if not url.startswith(("http://", "https://")):
+            continue
+
+        text = re.sub(r"\s+", " ", anchor.get_text(" ", strip=True))
+        if not text:
+            image = anchor.find("img", alt=True)
+            text = str(anchor.get("title") or anchor.get("aria-label") or (image["alt"] if image else "")).strip()
+
+        existing = links.get(url)
+        if existing is None:
+            links[url] = Link(url, text[:120])
+        elif len(text) > len(existing.text):
+            existing.text = text[:120]
+        if len(links) >= MAX_LINKS:
+            break
+    return list(links.values())
+
+
+def parse_html(data: bytes, encoding: str | None = None, base_url: str = "") -> HtmlPage:
+    """解析 HTML：標題、正文，以及頁面上的連結（需提供 base_url）。"""
     soup = BeautifulSoup(data, "html.parser", from_encoding=encoding)
 
     title = soup.title.get_text(strip=True) if soup.title else ""
@@ -88,10 +139,13 @@ def extract_html(data: bytes, encoding: str | None = None) -> tuple[str, str]:
         description = str(meta["content"]).strip()
 
     # 移除隱藏元素：常被用來藏匿提示詞注入
-    for element in soup.select('[hidden], [aria-hidden="true"], [style*="display:none"], [style*="display: none"], [style*="visibility:hidden"]'):
+    for element in soup.select(HIDDEN_SELECTOR):
         element.decompose()
-    for element in soup(("script", "style", "noscript", "svg", "nav", "footer", "header",
-                         "form", "aside", "iframe", "button", "template")):
+
+    # 連結要在移除導覽列之前收集：系所網站的子頁面多半只出現在選單裡
+    links = _collect_links(soup, base_url) if base_url else []
+
+    for element in soup(REMOVED_TAGS):
         element.decompose()
 
     root = (
@@ -105,7 +159,12 @@ def extract_html(data: bytes, encoding: str | None = None) -> tuple[str, str]:
     text = dedupe_lines(root.get_text(separator="\n"))
     if description and description not in text:
         text = f"{description}\n\n{text}"
-    return title, text
+    return HtmlPage(title, text, links)
+
+
+def extract_html(data: bytes, encoding: str | None = None) -> tuple[str, str]:
+    page = parse_html(data, encoding)
+    return page.title, page.text
 
 
 def extract_pdf(data: bytes) -> str:

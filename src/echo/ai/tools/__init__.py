@@ -1,3 +1,5 @@
+from echo.ai.search import WebSearch
+
 from .attachments import build_attachment_tool
 from .calculator import build_calculator_tool
 from .channel import build_channel_tools
@@ -9,7 +11,6 @@ from .notes import build_note_tools
 from .reminders import build_reminder_tools
 from .time import build_time_tools, now_text
 from .weather import build_weather_tool
-from .web_search import WebSearch
 
 __all__ = [
     "ApiClient",
