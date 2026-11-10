@@ -3,6 +3,7 @@ import re
 from agents import FunctionTool, RunContextWrapper, function_tool
 
 from echo.ai.context import RunContext
+from echo.ai.safety import detect_manipulation
 from echo.storage.notes import NoteStore
 
 MAX_NOTES = 30
@@ -25,6 +26,9 @@ def build_note_tools(store: NoteStore) -> list[FunctionTool]:
         value = re.sub(r"\s+", " ", value).strip()[:MAX_VALUE]
         if not key or not value:
             return "項目名稱與內容不可為空。"
+        # 筆記每一輪都會放進系統訊息：不可讓「以後都要…」這類指令藉此長期生效
+        if detect_manipulation(f"{key} {value}"):
+            return "這段內容像是對你的指示而不是關於對方的事實，不可記錄。"
 
         notes = await store.get_all(user_id)
         if key not in notes and len(notes) >= MAX_NOTES:
