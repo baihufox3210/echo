@@ -10,7 +10,7 @@ from echo.ai.context import AgentEvent, ChatOrigin, EventCallback, RunContext
 from echo.ai.models import CharacterState, ChatMessage, ChatResult
 from echo.ai.safety import PromptGuard, sanitize_user_input
 from echo.ai.tools import now_text
-from echo.ai.tools.web_search import normalize_url
+from echo.ai.search import normalize_url
 from echo.core.concurrency import KeyedLock
 from echo.core.config import Settings
 from echo.core.errors import EchoError

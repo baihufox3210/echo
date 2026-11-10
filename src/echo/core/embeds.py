@@ -13,8 +13,9 @@ STATE_FIELDS = (
     ("stamina", "✦ 體力"),
 )
 TOOL_LABELS = {
+    "discover": "探索主題",
     "web_search": "搜尋",
-    "multi_search": "多重搜尋",
+    "explore_site": "站內查找",
     "web_fetch": "閱讀網頁",
     "deep_research": "深入研究",
     "recall_memory": "回想記憶",

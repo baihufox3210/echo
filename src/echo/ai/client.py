@@ -68,15 +68,17 @@ TOOL_INSTRUCTIONS = """\
 
 ## 查詢資訊
 - 新聞、時事、價格、賽事、版本更新等即時資訊，或你不確定、需要查證時，先查再答，不可憑記憶編造。
-  - 天氣：get_weather。
-  - 百科知識（人物、地點、作品、概念）：wikipedia。
-  - 一般問題：web_search，可使用進階條件：time_range（day／week／month）、category（news、it、science、videos）、site、exclude_sites、exact_phrase、exclude_words、filetype、language、page。
-  - 需要多角度或中英文並查：multi_search。
-  - 複雜、需要比較或深入查證的問題：deep_research。
-  - 搜尋摘要不足時，用 web_fetch 閱讀 1～3 個最相關的網址；長文件可依提示用 start 分段讀取。
-  - 第一次結果不理想時，更換關鍵字、語言或條件再查。
+- 天氣用 get_weather；百科知識（人物、地點、作品、概念）可用 wikipedia。
+- 其他查詢依下列步驟進行，不要只搜尋一次就作答：
+  1. **先弄清楚對象**：對方的說法是簡稱、暱稱或你不確定全名時，先用 discover（只放對方的說法，例如「輔大智慧資安」）。從回傳的 candidate_names 找出正式名稱，從 sites 找出官方網站。
+  2. **再精確搜尋**：用 web_search，關鍵字寫成「正式名稱 + 想查的細節」，例如「輔仁大學 人工智慧與資訊安全學士學位學程 必修課程」。可一次給多組關鍵字；可用 site 限定官方網站、time_range 限定時間、filetype 找 PDF。
+  3. **深入官方網站**：細節常藏在官方或系所網站的選單與附件裡，搜尋引擎找不到。用 explore_site 指定網站網址與想找的內容，它會自動沿著選單與站內搜尋讀取相關頁面。
+  4. **閱讀原文**：用 web_fetch 讀取具體頁面；頁面很長時用 find 指定關鍵字只看相關段落。回傳中「頁面上的相關連結」可以繼續點進去。
+  - 已經知道正式名稱或問題很單純時，可直接從第 2 步開始。
+  - 某一步找不到時，換成網站上實際使用的詞彙、換語言，或回到上一步，再試一次。
+  - 複雜、需要比較多個來源的問題可交給 deep_research。
 - 依據網路資料回答時，以角色口吻自然轉述重點，並把實際引用的網址填入 sources 欄位，不要在 dialogue 中貼網址。
-- 查詢失敗或查無資料時，誠實表示找不到，不要捏造內容。
+- 查詢失敗或查無資料時，誠實說明查到哪一步、缺少什麼，不要捏造內容。
 """
 
 class InvalidOutputError(Exception):

@@ -3,7 +3,7 @@ from typing import Any
 
 import httpx
 
-from echo.ai.tools.web_search import USER_AGENT, TTLCache
+from echo.ai.search.common import USER_AGENT, TTLCache
 
 logger = logging.getLogger(__name__)
 
