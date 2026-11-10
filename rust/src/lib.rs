@@ -3,6 +3,7 @@
 //! 由 Python 版逐步改寫而來，進度見 `MIGRATION.md`。
 
 pub mod concurrency;
+pub mod documents;
 pub mod config;
 pub mod error;
 pub mod safety;
