@@ -226,6 +226,14 @@ uv run pytest
 | `Request with images rejected` | API 不接受圖片，冒號後為原因 |
 | `API returned no token usage` | API 沒有回傳 token 用量，`/usage` 的 token 會是 0；代理可能不支援 `stream_options` |
 
+## Rust 版（進行中）
+
+專案正逐步改寫為 Rust，程式碼位於 `rust/`，進度與模組對應見 [`rust/MIGRATION.md`](rust/MIGRATION.md)。在改寫完成前，正式執行的仍是 Python 版。Rust 版沿用相同的 `.env`、`prompt/` 與 SQLite 資料庫，切換時不需搬移資料。
+
+```bash
+cd rust && cargo test
+```
+
 ## 授權
 
 本專案採用 [MIT License](LICENSE)。

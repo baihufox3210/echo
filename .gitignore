@@ -17,3 +17,6 @@ memory.db
 data/
 *.db-*
 *.migrated
+
+# Rust
+rust/target/
