@@ -8,7 +8,14 @@ from echo.ai.attachments import IncomingFile, ProcessedFiles, process_files
 from echo.ai.client import AIClient
 from echo.ai.context import AgentEvent, ChatOrigin, EventCallback, RunContext
 from echo.ai.models import CharacterState, ChatMessage, ChatResult
-from echo.ai.safety import PromptGuard, TurnRisk, assess_user_turn, sanitize_user_input
+from echo.ai.safety import (
+    FOLLOW_UP_LOOKBACK,
+    USER_TURN_TRAILER,
+    PromptGuard,
+    TurnRisk,
+    assess_user_turn,
+    sanitize_user_input,
+)
 from echo.ai.tools import now_text
 from echo.ai.search import normalize_url
 from echo.core.concurrency import KeyedLock
@@ -122,8 +129,9 @@ class AIService:
                         response = response.model_copy(update={"dialogue": LEAK_FALLBACK, "state": previous_state})
 
             stored_message = self._describe_for_history(user_message, processed)
-            if risk is not None:
-                # 留在對話紀錄中的操控訊息加上標記，避免之後的回合把它當成有效的指示
+            if risk is not None and risk.kind != "follow_up":
+                # 留在對話紀錄中的操控訊息加上標記，避免之後的回合把它當成有效的指示。
+                # 連帶判定的後續訊息不標記，否則之後的正常對話會一直被連帶下去
                 stored_message = f"{FLAGGED_HISTORY_NOTE}\n{stored_message}"
             exchange = [
                 ChatMessage(role="user", content=stored_message),
@@ -187,7 +195,9 @@ class AIService:
             m.content for m in short_term
             if m.role == "user" and not m.content.startswith(FLAGGED_HISTORY_NOTE)
         ]
-        risk = assess_user_turn(user_message, earlier_user)
+        recent_user = [m.content for m in short_term if m.role == "user"][-FOLLOW_UP_LOOKBACK:]
+        recently_flagged = any(content.startswith(FLAGGED_HISTORY_NOTE) for content in recent_user)
+        risk = assess_user_turn(user_message, earlier_user, recently_flagged)
         if risk is not None:
             logger.warning("Possible %s manipulation from user %d: %s", risk.kind, user_id, risk.matched)
 
@@ -239,6 +249,8 @@ class AIService:
         if processed.notes:
             parts.append("附件處理狀況：\n" + "\n".join(f"- {n}" for n in processed.notes))
 
+        # 固定提醒放在最後、最接近模型作答的位置；只存在於本輪請求，不會寫入對話紀錄
+        parts.append(USER_TURN_TRAILER)
         return "\n\n".join(parts)
 
     @staticmethod
