@@ -7,7 +7,7 @@ Rust 版沿用相同的 `.env` 變數、`prompt/` 目錄與 SQLite 資料表，�
 | --- | --- | --- |
 | 1 | 專案骨架、設定、儲存層（短期記憶、角色狀態、用量、筆記、提醒）、訊息分段、流量限制、提示詞注入防禦、搜尋文字比對 | 完成 |
 | 2 | 聯網搜尋：SearXNG 客戶端、網頁抓取（SSRF 防護、robots、sitemap）、HTML／PDF／DOCX 解析、站內查找 | 完成 |
-| 3 | AI 客戶端：Chat Completions、工具呼叫迴圈、串流、結構化輸出與救回、節流與備援模型 | 未開始 |
+| 3 | AI 客戶端：Chat Completions、工具呼叫迴圈、串流、結構化輸出與救回、節流與備援模型 | 完成 |
 | 4 | 工具：時間、計算、擲骰、天氣、維基百科、匯率、筆記、提醒、附件、表情反應、研究子代理；對話服務（Prompt 組合、記憶、洩漏防護） | 未開始 |
 | 5 | Discord：訊息處理、串流回覆、Embed、斜線指令、提醒派送、好感度衰減、健康檢查 | 未開始 |
 | 6 | Dockerfile 與 compose 切換為 Rust 版、移除 Python 版、更新 README | 未開始 |
@@ -28,12 +28,22 @@ Rust 版沿用相同的 `.env` 變數、`prompt/` 目錄與 SQLite 資料表，�
 | `ai/search/fetcher.py` | `search/fetcher.rs` |
 | `ai/search/site.py` | `search/site.rs` |
 | `ai/documents.py` | `documents.rs` |
+| `ai/models.py` | `ai/types.rs` |
+| `ai/context.py` | `ai/context.rs` |
+| `ai/throttle.py` | `ai/throttle.rs` |
+| `ai/streaming.py` | `ai/stream.rs` |
+| `ai/output.py` | `ai/output.rs` |
+| `ai/client.py`（openai-agents 的 Runner） | `ai/api.rs`、`ai/agent.rs`、`ai/client.rs` |
 
 `ai/search/__init__.py` 中給模型用的四個工具（discover、web_search、explore_site、web_fetch）
 依賴代理的執行環境，會在第 4 階段與其他工具一起移植。
 
 ## 與 Python 版的差異
 
+- 不使用 openai-agents：請求組合、重試、SSE 解析與工具呼叫迴圈由 `ai/api.rs` 與 `ai/agent.rs` 自行實作。
+- 串流以位元組緩衝後逐行解碼，中文字被拆在兩個網路封包時不會變成「���」。
+- 重試只有一層（API 層，`AI_MAX_RETRIES`），並與節流器的 429 冷卻整合；Python 版是 OpenAI SDK 的重試加上 httpx hook。
+- 事件以 channel 傳遞（`AgentEvent::{Status, Text, Retry}`），不是 callback。
 - PDF 以 `pdf-extract` 解析，輸出不含「[第 N 頁]」頁碼標記。
 - 不再匯入舊版的 `character_state.json`（資料已在 SQLite 中）。
 - robots.txt 以內建的簡易解析器處理，只看 `User-agent: *` 與本 Bot 的規則。
